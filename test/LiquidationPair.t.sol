@@ -6,16 +6,17 @@ import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 import {LiquidationPairFactory} from "../src/LiquidationPairFactory.sol";
 import {LiquidationPair} from "../src/LiquidationPair.sol";
-import {ILiquidationPairYieldSource} from "../src/interfaces/ILiquidationPairYieldSource.sol";
+import {ILiquidationSource} from "../src/interfaces/ILiquidationSource.sol";
 import {LiquidatorLib} from "../src/libraries/LiquidatorLib.sol";
+import {UFixed32x9} from "../src/libraries/FixedMathLib.sol";
 import {BaseSetup} from "./utils/BaseSetup.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockLiquidationPairYieldSource} from "./mocks/MockLiquidationPairYieldSource.sol";
 
 abstract contract LiquidationPairBaseSetup is BaseSetup {
     address defaultTarget;
-    uint32 defaultSwapMultiplier;
-    uint32 defaultLiquidityFraction;
+    UFixed32x9 defaultSwapMultiplier;
+    UFixed32x9 defaultLiquidityFraction;
     uint256 defaultVirtualReserveIn;
     uint256 defaultVirtualReserveOut;
     LiquidationPair public liquidationPair;
@@ -24,20 +25,12 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
     MockERC20 public tokenOut;
     MockLiquidationPairYieldSource public liquidationPairYieldSource;
 
-    event Swapped(
-        ILiquidationPairYieldSource indexed prizePool,
-        address target,
-        IERC20 tokenIn,
-        IERC20 indexed tokenOut,
-        address indexed account,
-        uint256 amountIn,
-        uint256 amountOut
-    );
+    event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
 
     function initializeContracts(
         address _target,
-        uint32 _swapMultiplier,
-        uint32 _liquidityFraction,
+        UFixed32x9 _swapMultiplier,
+        UFixed32x9 _liquidityFraction,
         uint256 _virtualReserveIn,
         uint256 _virtualReserveOut
     ) public {
@@ -67,7 +60,9 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
 contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     function setUp() public virtual override {
         super.setUp();
-        initializeContracts(0x27fcf06DcFFdDB6Ec5F62D466987e863ec6aE6A0, 0.3e9, 0.02e9, 100, 50);
+        initializeContracts(
+            0x27fcf06DcFFdDB6Ec5F62D466987e863ec6aE6A0, UFixed32x9.wrap(0.3e9), UFixed32x9.wrap(0.02e9), 100, 50
+        );
     }
 
     function testMaxAmountOut() public {
@@ -102,21 +97,6 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(amountOut, expectedAmountOut);
     }
 
-    function testGetLiquidationConfig() public {
-        (IERC20 _tokenIn, IERC20 _tokenOut, uint32 _swapMultiplier, uint32 _liquidityFraction) =
-            liquidationPair.getLiquidationConfig();
-        assertEq(address(_tokenOut), address(tokenOut));
-        assertEq(address(_tokenIn), address(tokenIn));
-        assertEq(_swapMultiplier, defaultSwapMultiplier);
-        assertEq(_liquidityFraction, defaultLiquidityFraction);
-    }
-
-    function testGetLiquidationState() public {
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertEq(virtualReserveIn, defaultVirtualReserveIn);
-        assertEq(virtualReserveOut, defaultVirtualReserveOut);
-    }
-
     function testSwapExactAmountIn(uint256 amountOfYield) public {
         vm.assume(amountOfYield / 100 > 0);
         vm.assume(amountOfYield < type(uint112).max);
@@ -130,7 +110,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.mint(alice, exactAmountIn);
         tokenIn.approve(address(liquidationPair), exactAmountIn);
         vm.expectEmit(true, true, true, true);
-        emit Swapped(liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, alice, exactAmountIn, amountOutMin);
+        emit Swapped(alice, exactAmountIn, amountOutMin);
         uint256 swappedAmountOut = liquidationPair.swapExactAmountIn(exactAmountIn, amountOutMin);
 
         vm.stopPrank();
@@ -140,9 +120,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(tokenIn.balanceOf(alice), 0);
         assertEq(tokenIn.balanceOf(defaultTarget), exactAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOutMin);
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, exactAmountIn);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), exactAmountIn);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
     function testSwapExactAmountInProperties() public {
@@ -157,14 +136,22 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
         exactAmountsIn[2] = liquidationPair.computeExactAmountIn(wantedAmountOut);
 
-        console.log(exactAmountsIn[0], exactAmountsIn[1], exactAmountsIn[2]);
         assertGt(exactAmountsIn[0], exactAmountsIn[1]);
         assertGt(exactAmountsIn[1], exactAmountsIn[2]);
     }
 
     function testSwapExactAmountInMinimumValues() public {
-        LiquidationPair lp =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, 1, 1, 1);
+        LiquidationPair lp = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(1),
+            1,
+            1
+        );
         uint256 amountOfYield = 1;
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
@@ -176,7 +163,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.mint(alice, exactAmountIn);
         tokenIn.approve(address(lp), exactAmountIn);
         vm.expectEmit(true, true, true, true);
-        emit Swapped(liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, alice, exactAmountIn, amountOutMin);
+        emit Swapped(alice, exactAmountIn, amountOutMin);
         uint256 swappedAmountOut = lp.swapExactAmountIn(exactAmountIn, amountOutMin);
 
         vm.stopPrank();
@@ -186,9 +173,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(tokenIn.balanceOf(alice), 0);
         assertEq(tokenIn.balanceOf(defaultTarget), exactAmountIn);
         assertEq(lp.maxAmountOut(), amountOfYield - amountOutMin);
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, exactAmountIn);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), exactAmountIn);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
     function testSwapExactAmountOut(uint256 amountOut) public {
@@ -202,7 +188,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.startPrank(alice);
         tokenIn.mint(alice, amountInMax);
         tokenIn.approve(address(liquidationPair), amountInMax);
-        emit Swapped(liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, alice, amountInMax, amountOut);
+        emit Swapped(alice, amountInMax, amountOut);
         uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, amountInMax);
         vm.stopPrank();
 
@@ -211,9 +197,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(tokenIn.balanceOf(alice), amountInMax - swappedAmountIn);
         assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut);
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, amountInMax);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), amountInMax);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
     function testSwapExactAmountOutProperties() public {
@@ -233,8 +218,17 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testSwapExactAmountOutMinimumValues() public {
-        LiquidationPair lp =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, 1, 1, 1);
+        LiquidationPair lp = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(1),
+            1,
+            1
+        );
         uint256 amountOfYield = 10;
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
@@ -245,7 +239,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.mint(alice, amountInMax);
         tokenIn.approve(address(lp), amountInMax);
         vm.expectEmit(true, true, true, true);
-        emit Swapped(liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, alice, amountInMax, wantedAmountOut);
+        emit Swapped(alice, amountInMax, wantedAmountOut);
         uint256 swappedAmountIn = lp.swapExactAmountOut(wantedAmountOut, amountInMax);
 
         vm.stopPrank();
@@ -255,9 +249,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(tokenIn.balanceOf(alice), amountInMax - swappedAmountIn);
         assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - wantedAmountOut);
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, swappedAmountIn);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), swappedAmountIn);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
     function testSwapPercentageOfYield(uint256 amountOfYield, uint8 percentage) public {
@@ -273,8 +266,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             defaultTarget,
             tokenIn,
             tokenOut,
-            0,
-            type(uint32).max,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(type(uint32).max),
             amountOfYield,
             amountOfYield
         );
@@ -309,7 +302,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenOut.mint(alice, amountIn);
         tokenOut.approve(address(liquidationPair), amountIn);
 
-        vm.expectRevert(bytes("trade does not meet min"));
+        vm.expectRevert(bytes("LiquidationPair/min-not-guaranteed"));
         liquidationPair.swapExactAmountIn(amountIn, type(uint256).max);
         vm.stopPrank();
     }
@@ -325,7 +318,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenOut.mint(alice, amountInMax);
         tokenOut.approve(address(liquidationPair), amountInMax);
 
-        vm.expectRevert(bytes("trade does not meet max"));
+        vm.expectRevert(bytes("LiquidationPair/max-not-guaranteed"));
         liquidationPair.swapExactAmountOut(amountOut, 0);
         vm.stopPrank();
     }
@@ -343,13 +336,12 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.mint(alice, 100);
 
         vm.expectEmit(true, true, true, true);
-        emit Swapped(liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, alice, amountIn, amountOut);
+        emit Swapped(alice, amountIn, amountOut);
 
         uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, type(uint256).max);
 
-        (uint256 virtualReserveIn, uint256 virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, amountIn);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), amountIn);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
 
         assertEq(tokenOut.balanceOf(alice), amountOut);
         assertEq(tokenIn.balanceOf(alice), 100 - swappedAmountIn);
@@ -363,19 +355,44 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut - swappedAmountOut);
         assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn + swappedAmountIn);
 
-        (virtualReserveIn, virtualReserveOut) = liquidationPair.getLiquidationState();
-        assertGe(virtualReserveIn, amountIn);
-        assertGe(virtualReserveOut, amountOfYield);
+        assertGe(liquidationPair.virtualReserveIn(), amountIn);
+        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
         vm.stopPrank();
     }
 
     function testSwapMultiplierProperties() public {
-        LiquidationPair lp1 =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, 1, 1000, 1000);
-        LiquidationPair lp2 =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 1e9, 1, 1000, 1000);
+        LiquidationPair lp1 = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(1),
+            1000,
+            1000
+        );
+        LiquidationPair lp2 = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(1e9),
+            UFixed32x9.wrap(1),
+            1000,
+            1000
+        );
         LiquidationPair lp3 = factory.createPair(
-            alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, type(uint32).max, 1, 1000, 1000
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(type(uint32).max),
+            UFixed32x9.wrap(1),
+            1000,
+            1000
         );
 
         liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
@@ -390,27 +407,49 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountIn2 = lp2.swapExactAmountOut(10, type(uint256).max);
         uint256 amountIn3 = lp3.swapExactAmountOut(10, type(uint256).max);
 
-        (uint256 virtualReserveIn1, uint256 virtualReserveOut1) = lp1.getLiquidationState();
-        (uint256 virtualReserveIn2, uint256 virtualReserveOut2) = lp2.getLiquidationState();
-        (uint256 virtualReserveIn3, uint256 virtualReserveOut3) = lp3.getLiquidationState();
-
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
-        assertGe(virtualReserveIn2, virtualReserveIn1);
-        assertGe(virtualReserveIn3, virtualReserveIn2);
-        assertLe(virtualReserveOut2, virtualReserveOut1);
-        assertLe(virtualReserveOut3, virtualReserveOut2);
+        assertGe(lp2.virtualReserveIn(), lp1.virtualReserveIn());
+        assertGe(lp3.virtualReserveIn(), lp2.virtualReserveIn());
+        assertLe(lp2.virtualReserveOut(), lp1.virtualReserveOut());
+        assertLe(lp3.virtualReserveOut(), lp2.virtualReserveOut());
 
         vm.stopPrank();
     }
 
     function testLiquidityFractionProperties() public {
-        LiquidationPair lp1 =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, 1, 1000, 1000);
-        LiquidationPair lp2 =
-            factory.createPair(alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, 1e9, 1000, 1000);
+        LiquidationPair lp1 = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(1),
+            1000,
+            1000
+        );
+        LiquidationPair lp2 = factory.createPair(
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(1e9),
+            1000,
+            1000
+        );
         LiquidationPair lp3 = factory.createPair(
-            alice, liquidationPairYieldSource, defaultTarget, tokenIn, tokenOut, 0, type(uint32).max, 1000, 1000
+            alice,
+            liquidationPairYieldSource,
+            defaultTarget,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(0),
+            UFixed32x9.wrap(type(uint32).max),
+            1000,
+            1000
         );
 
         liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
@@ -425,16 +464,12 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountIn2 = lp2.swapExactAmountOut(10, type(uint256).max);
         uint256 amountIn3 = lp3.swapExactAmountOut(10, type(uint256).max);
 
-        (uint256 virtualReserveIn1, uint256 virtualReserveOut1) = lp1.getLiquidationState();
-        (uint256 virtualReserveIn2, uint256 virtualReserveOut2) = lp2.getLiquidationState();
-        (uint256 virtualReserveIn3, uint256 virtualReserveOut3) = lp3.getLiquidationState();
-
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
-        assertGe(virtualReserveIn1, virtualReserveIn2);
-        assertGe(virtualReserveIn2, virtualReserveIn3);
-        assertGe(virtualReserveOut1, virtualReserveOut2);
-        assertGe(virtualReserveOut2, virtualReserveOut3);
+        assertGe(lp1.virtualReserveIn(), lp2.virtualReserveIn());
+        assertGe(lp2.virtualReserveIn(), lp3.virtualReserveIn());
+        assertGe(lp1.virtualReserveOut(), lp2.virtualReserveOut());
+        assertGe(lp2.virtualReserveOut(), lp3.virtualReserveOut());
 
         vm.stopPrank();
     }

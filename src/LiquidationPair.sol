@@ -5,43 +5,36 @@ import "openzeppelin/token/ERC20/IERC20.sol";
 import "owner-manager-contracts/Manageable.sol";
 
 import "./libraries/LiquidatorLib.sol";
-import "./interfaces/ILiquidationPairYieldSource.sol";
+import "./libraries/FixedMathLib.sol";
+import "./interfaces/ILiquidationSource.sol";
 
 contract LiquidationPair is Manageable {
     // Config
-    ILiquidationPairYieldSource public immutable liquidatorYieldSource; // Where to get tokenIn from
+    ILiquidationSource public immutable source; // Where to get tokenIn from
     address public immutable target; // Where to send tokenOut
     IERC20 public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
     IERC20 public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
-    uint32 public immutable swapMultiplier; // 9 decimals // TODO: strongly type this
-    uint32 public immutable liquidityFraction; // 9 decimals // TODO: strongly type this
+    UFixed32x9 public immutable swapMultiplier; // 9 decimals // TODO: strongly type this
+    UFixed32x9 public immutable liquidityFraction; // 9 decimals // TODO: strongly type this
 
     uint256 public virtualReserveIn;
     uint256 public virtualReserveOut;
 
-    event Swapped(
-        ILiquidationPairYieldSource indexed prizePool,
-        address target,
-        IERC20 tokenIn,
-        IERC20 indexed tokenOut,
-        address indexed account,
-        uint256 amountIn,
-        uint256 amountOut
-    );
+    event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
 
     constructor(
         address _owner,
-        ILiquidationPairYieldSource _liquidatorYieldSource,
+        ILiquidationSource _source,
         address _target,
         IERC20 _tokenIn,
         IERC20 _tokenOut,
-        uint32 _swapMultiplier,
-        uint32 _liquidityFraction,
+        UFixed32x9 _swapMultiplier,
+        UFixed32x9 _liquidityFraction,
         uint256 _virtualReserveIn,
         uint256 _virtualReserveOut
     ) Ownable(_owner) {
-        require(_liquidityFraction > 0, "liquidityFraction must be greater than 0");
-        liquidatorYieldSource = _liquidatorYieldSource;
+        require(UFixed32x9.unwrap(_liquidityFraction) > 0, "LiquidationPair/liquidity-fraction-greater-than-zero");
+        source = _source;
         target = _target;
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
@@ -56,7 +49,7 @@ contract LiquidationPair is Manageable {
     }
 
     function _availableReserveOut() internal returns (uint256) {
-        return liquidatorYieldSource.availableBalanceOf(address(tokenOut));
+        return source.availableBalanceOf(address(tokenOut));
     }
 
     function nextLiquidationState() external returns (uint256, uint256) {
@@ -80,10 +73,10 @@ contract LiquidationPair is Manageable {
         );
         virtualReserveIn = _virtualReserveIn;
         virtualReserveOut = _virtualReserveOut;
-        require(amountOut >= _amountOutMin, "trade does not meet min");
+        require(amountOut >= _amountOutMin, "LiquidationPair/min-not-guaranteed");
         _swap(msg.sender, amountOut, _amountIn);
 
-        emit Swapped(liquidatorYieldSource, target, tokenIn, tokenOut, msg.sender, _amountIn, amountOut);
+        emit Swapped(msg.sender, _amountIn, amountOut);
 
         return amountOut;
     }
@@ -95,24 +88,16 @@ contract LiquidationPair is Manageable {
         );
         virtualReserveIn = _virtualReserveIn;
         virtualReserveOut = _virtualReserveOut;
-        require(amountIn <= _amountInMax, "trade does not meet max");
+        require(amountIn <= _amountInMax, "LiquidationPair/max-not-guaranteed");
         _swap(msg.sender, _amountOut, amountIn);
 
-        emit Swapped(liquidatorYieldSource, target, tokenIn, tokenOut, msg.sender, amountIn, _amountOut);
+        emit Swapped(msg.sender, amountIn, _amountOut);
 
         return amountIn;
     }
 
     function _swap(address _account, uint256 _amountOut, uint256 _amountIn) internal {
-        liquidatorYieldSource.transfer(address(tokenOut), _account, _amountOut);
+        source.transfer(address(tokenOut), _account, _amountOut);
         tokenIn.transferFrom(_account, target, _amountIn);
-    }
-
-    function getLiquidationConfig() external view returns (IERC20, IERC20, uint32, uint32) {
-        return (tokenIn, tokenOut, swapMultiplier, liquidityFraction);
-    }
-
-    function getLiquidationState() external view returns (uint256, uint256) {
-        return (virtualReserveIn, virtualReserveOut);
     }
 }

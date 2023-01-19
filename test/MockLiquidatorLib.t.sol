@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {BaseSetup} from "./utils/BaseSetup.sol";
 import {MockLiquidatorLib} from "./mocks/MockLiquidatorLib.sol";
+import {UFixed32x9, FixedMathLib} from "../src/libraries/FixedMathLib.sol";
 
 contract MockLiquidatorLibTest is BaseSetup {
     // Contracts
@@ -23,9 +24,9 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testCannotGetAmountOut() public {
-        vm.expectRevert(bytes("CpmmLib/INSUFF_PAIR_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.getAmountOut(100, 0, 100);
-        vm.expectRevert(bytes("CpmmLib/INSUFF_PAIR_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.getAmountOut(100, 100, 0);
     }
 
@@ -44,9 +45,9 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testCannotGetAmountIn() public {
-        vm.expectRevert(bytes("CpmmLib/INSUFF_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.getAmountIn(1000, 10, 100);
-        vm.expectRevert(bytes("CpmmLib/INSUFF_PAIR_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.getAmountIn(10, 0, 100);
     }
 
@@ -66,9 +67,9 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testCannotVirtualBuybackRequire() public {
-        vm.expectRevert(bytes("CpmmLib/INSUFF_PAIR_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.virtualBuyback(10, 0, 10);
-        vm.expectRevert(bytes("CpmmLib/INSUFF_PAIR_LIQ"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity"));
         mockLiquidatorLib.virtualBuyback(0, 10, 10);
     }
 
@@ -84,7 +85,7 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testCannotComputeExactAmountInRequire() public {
-        vm.expectRevert(bytes("insuff balance"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity"));
         mockLiquidatorLib.computeExactAmountIn(10, 10, 10, 100);
     }
 
@@ -102,7 +103,7 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testCannotComputeExactAmountOut() public {
-        vm.expectRevert(bytes("insuff balance"));
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity"));
         mockLiquidatorLib.computeExactAmountOut(10, 10, 0, 100);
     }
 
@@ -114,7 +115,8 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testVirtualSwapHappyPath() public {
-        (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.virtualSwap(10, 10, 10, 10, 0.1e9, 0.01e9);
+        (uint256 reserveA, uint256 reserveB) =
+            mockLiquidatorLib.virtualSwap(10, 10, 10, 10, UFixed32x9.wrap(0.1e9), UFixed32x9.wrap(0.01e9));
         assertEq(reserveA, 1222);
         assertEq(reserveB, 999);
     }
@@ -124,15 +126,15 @@ contract MockLiquidatorLibTest is BaseSetup {
         uint256 _reserve1,
         uint256 _availableReserve1,
         uint256 _reserve1Out,
-        uint32 _swapMultiplier,
-        uint32 _liquidityFraction
+        UFixed32x9 _swapMultiplier,
+        UFixed32x9 _liquidityFraction
     ) public {
         vm.assume(_availableReserve1 < type(uint112).max);
         vm.assume(_reserve1Out < type(uint112).max);
         vm.assume(_reserve1Out > 0); // Asserts tokens are being given out - Should we allow 0 to be swapped out?
-        vm.assume(_liquidityFraction > 0);
+        vm.assume(UFixed32x9.unwrap(_liquidityFraction) > 0);
 
-        uint256 extraVirtualReserveOut1 = (_reserve1Out * _swapMultiplier) / 1e9;
+        uint256 extraVirtualReserveOut1 = FixedMathLib.mul(_reserve1Out, _swapMultiplier);
         vm.assume(extraVirtualReserveOut1 < type(uint256).max - _reserve1);
         getAmountInAssumptions(extraVirtualReserveOut1, _reserve0, _reserve1);
         uint256 extraVirtualReserveIn0 = mockLiquidatorLib.getAmountIn(extraVirtualReserveOut1, _reserve0, _reserve1);
@@ -143,7 +145,7 @@ contract MockLiquidatorLibTest is BaseSetup {
         vm.assume((_availableReserve1 * 1e9) < type(uint256).max);
         uint256 reserveFraction = (_availableReserve1 * 1e9) / reserve1;
         vm.assume((reserveFraction * 1e9) < type(uint256).max);
-        uint256 multiplier = (reserveFraction * 1e9) / uint256(_liquidityFraction);
+        uint256 multiplier = FixedMathLib.div(reserveFraction, _liquidityFraction);
         vm.assume((reserve0 * multiplier) < type(uint256).max);
         vm.assume((reserve1 * multiplier) < type(uint256).max);
 
@@ -154,28 +156,28 @@ contract MockLiquidatorLibTest is BaseSetup {
 
     function testSwapExactAmountInHappyPath() public {
         (uint256 reserveA, uint256 reserveB, uint256 amountOut) =
-            mockLiquidatorLib.swapExactAmountIn(10, 10, 100, 5, 0.1e9, 0.01e9);
+            mockLiquidatorLib.swapExactAmountIn(10, 10, 100, 5, UFixed32x9.wrap(0.1e9), UFixed32x9.wrap(0.01e9));
         assertEq(reserveA, 11000);
         assertEq(reserveB, 10000);
         assertEq(amountOut, 91);
     }
 
     function testCannotSwapExactAmountInRequire() public {
-        vm.expectRevert(bytes("LiqLib/insuff-liq"));
-        mockLiquidatorLib.swapExactAmountIn(10, 10, 10, 10, 0.1e9, 0.01e9);
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity"));
+        mockLiquidatorLib.swapExactAmountIn(10, 10, 10, 10, UFixed32x9.wrap(0.1e9), UFixed32x9.wrap(0.01e9));
     }
 
     function testSwapExactAmountOutHappyPath() public {
         (uint256 reserveA, uint256 reserveB, uint256 amountIn) =
-            mockLiquidatorLib.swapExactAmountOut(10, 10, 100, 91, 0.1e9, 0.01e9);
+            mockLiquidatorLib.swapExactAmountOut(10, 10, 100, 91, UFixed32x9.wrap(0.1e9), UFixed32x9.wrap(0.01e9));
         assertEq(reserveA, 9000);
         assertEq(reserveB, 10000);
         assertEq(amountIn, 4);
     }
 
     function testCannotSwapExactAmountOutRequire() public {
-        vm.expectRevert(bytes("LiqLib/insuff-liq"));
-        mockLiquidatorLib.swapExactAmountOut(10, 10, 10, 100, 0.1e9, 0.01e9);
+        vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity"));
+        mockLiquidatorLib.swapExactAmountOut(10, 10, 10, 100, UFixed32x9.wrap(0.1e9), UFixed32x9.wrap(0.01e9));
     }
 
     // Assumptions for restriction fuzz tests

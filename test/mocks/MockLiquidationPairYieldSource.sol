@@ -4,10 +4,10 @@ pragma solidity 0.8.17;
 
 import "openzeppelin/token/ERC20/IERC20.sol";
 
-import "../../src/interfaces/ILiquidationPairYieldSource.sol";
+import "../../src/interfaces/ILiquidationSource.sol";
 import "./MockERC20.sol";
 
-contract MockLiquidationPairYieldSource is ILiquidationPairYieldSource {
+contract MockLiquidationPairYieldSource is ILiquidationSource {
     constructor() {}
 
     function availableBalanceOf(address token) external view returns (uint256) {
