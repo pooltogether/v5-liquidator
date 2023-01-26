@@ -14,11 +14,11 @@ contract LiquidationPair is Manageable {
     address public immutable target; // Where to send tokenOut
     IERC20 public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
     IERC20 public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
-    UFixed32x9 public immutable swapMultiplier; // 9 decimals // TODO: strongly type this
-    UFixed32x9 public immutable liquidityFraction; // 9 decimals // TODO: strongly type this
+    UFixed32x9 public immutable swapMultiplier; // 9 decimals
+    UFixed32x9 public immutable liquidityFraction; // 9 decimals
 
-    uint256 public virtualReserveIn;
-    uint256 public virtualReserveOut;
+    uint128 public virtualReserveIn;
+    uint128 public virtualReserveOut;
 
     event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
 
@@ -30,10 +30,12 @@ contract LiquidationPair is Manageable {
         IERC20 _tokenOut,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction,
-        uint256 _virtualReserveIn,
-        uint256 _virtualReserveOut
+        uint128 _virtualReserveIn,
+        uint128 _virtualReserveOut
     ) Ownable(_owner) {
         require(UFixed32x9.unwrap(_liquidityFraction) > 0, "LiquidationPair/liquidity-fraction-greater-than-zero");
+        require(UFixed32x9.unwrap(_swapMultiplier) <= 1e9, "LiquidationPair/swap-multiplier-less-than-one");
+        require(UFixed32x9.unwrap(_liquidityFraction) <= 1e9, "LiquidationPair/liquidity-fraction-less-than-one");
         source = _source;
         target = _target;
         tokenIn = _tokenIn;
@@ -52,7 +54,7 @@ contract LiquidationPair is Manageable {
         return source.availableBalanceOf(address(tokenOut));
     }
 
-    function nextLiquidationState() external returns (uint256, uint256) {
+    function nextLiquidationState() external returns (uint128, uint128) {
         return LiquidatorLib.virtualBuyback(virtualReserveIn, virtualReserveOut, _availableReserveOut());
     }
 
@@ -68,7 +70,7 @@ contract LiquidationPair is Manageable {
 
     function swapExactAmountIn(uint256 _amountIn, uint256 _amountOutMin) external returns (uint256) {
         uint256 availableBalance = _availableReserveOut();
-        (uint256 _virtualReserveIn, uint256 _virtualReserveOut, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
+        (uint128 _virtualReserveIn, uint128 _virtualReserveOut, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
             virtualReserveIn, virtualReserveOut, availableBalance, _amountIn, swapMultiplier, liquidityFraction
         );
         virtualReserveIn = _virtualReserveIn;
@@ -83,7 +85,7 @@ contract LiquidationPair is Manageable {
 
     function swapExactAmountOut(uint256 _amountOut, uint256 _amountInMax) external returns (uint256) {
         uint256 availableBalance = _availableReserveOut();
-        (uint256 _virtualReserveIn, uint256 _virtualReserveOut, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
+        (uint128 _virtualReserveIn, uint128 _virtualReserveOut, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
             virtualReserveIn, virtualReserveOut, availableBalance, _amountOut, swapMultiplier, liquidityFraction
         );
         virtualReserveIn = _virtualReserveIn;
@@ -96,6 +98,8 @@ contract LiquidationPair is Manageable {
         return amountIn;
     }
 
+    // Note: Uniswap has restrictions on _account, but we don't
+    // Note: Uniswap requires _amountOut to be > 0, but we don't
     function _swap(address _account, uint256 _amountOut, uint256 _amountIn) internal {
         source.transfer(address(tokenOut), _account, _amountOut);
         tokenIn.transferFrom(_account, target, _amountIn);
