@@ -27,8 +27,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
         IERC20 tokenOut,
         UFixed32x9 swapMultiplier,
         UFixed32x9 liquidityFraction,
-        uint256 virtualReserveIn,
-        uint256 virtualReserveOut
+        uint128 virtualReserveIn,
+        uint128 virtualReserveOut
     );
 
     function setUp() public virtual override {

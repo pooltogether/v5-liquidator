@@ -9,14 +9,14 @@ import "./LiquidationPair.sol";
 contract LiquidationPairFactory {
     event PairCreated(
         LiquidationPair indexed liquidator,
-        ILiquidationSource indexed LiquidationPairYieldSource,
+        ILiquidationSource indexed source,
         address target,
         IERC20 indexed tokenIn,
         IERC20 tokenOut,
         UFixed32x9 swapMultiplier,
         UFixed32x9 liquidityFraction,
-        uint256 virtualReserveIn,
-        uint256 virtualReserveOut
+        uint128 virtualReserveIn,
+        uint128 virtualReserveOut
     );
 
     constructor() {}
@@ -29,8 +29,8 @@ contract LiquidationPairFactory {
         IERC20 _tokenOut,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction,
-        uint256 _virtualReserveIn,
-        uint256 _virtualReserveOut
+        uint128 _virtualReserveIn,
+        uint128 _virtualReserveOut
     ) external returns (LiquidationPair) {
         LiquidationPair liquidator =
         new LiquidationPair(_owner, _source, _target,  _tokenIn, _tokenOut, _swapMultiplier, _liquidityFraction, _virtualReserveIn, _virtualReserveOut);

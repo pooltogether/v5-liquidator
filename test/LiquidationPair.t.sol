@@ -17,8 +17,8 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
     address defaultTarget;
     UFixed32x9 defaultSwapMultiplier;
     UFixed32x9 defaultLiquidityFraction;
-    uint256 defaultVirtualReserveIn;
-    uint256 defaultVirtualReserveOut;
+    uint128 defaultVirtualReserveIn;
+    uint128 defaultVirtualReserveOut;
     LiquidationPair public liquidationPair;
     LiquidationPairFactory public factory;
     MockERC20 public tokenIn;
@@ -31,8 +31,8 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
         address _target,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction,
-        uint256 _virtualReserveIn,
-        uint256 _virtualReserveOut
+        uint128 _virtualReserveIn,
+        uint128 _virtualReserveOut
     ) public {
         defaultTarget = _target;
         defaultSwapMultiplier = _swapMultiplier;
@@ -109,7 +109,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.startPrank(alice);
         tokenIn.mint(alice, exactAmountIn);
         tokenIn.approve(address(liquidationPair), exactAmountIn);
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, false, false, true);
         emit Swapped(alice, exactAmountIn, amountOutMin);
         uint256 swappedAmountOut = liquidationPair.swapExactAmountIn(exactAmountIn, amountOutMin);
 
@@ -162,7 +162,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.startPrank(alice);
         tokenIn.mint(alice, exactAmountIn);
         tokenIn.approve(address(lp), exactAmountIn);
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, false, false, true);
         emit Swapped(alice, exactAmountIn, amountOutMin);
         uint256 swappedAmountOut = lp.swapExactAmountIn(exactAmountIn, amountOutMin);
 
@@ -179,7 +179,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
     function testSwapExactAmountOut(uint256 amountOut) public {
         vm.assume(amountOut > 0);
-        vm.assume(amountOut <= type(uint128).max); // NOTE: Hardcoded boundary
+        vm.assume(amountOut <= type(uint112).max);
         uint256 amountOfYield = amountOut * 2;
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
@@ -188,6 +188,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.startPrank(alice);
         tokenIn.mint(alice, amountInMax);
         tokenIn.approve(address(liquidationPair), amountInMax);
+        vm.expectEmit(true, false, false, true);
         emit Swapped(alice, amountInMax, amountOut);
         uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, amountInMax);
         vm.stopPrank();
@@ -201,7 +202,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
-    function testSwapExactAmountOutProperties() public {
+    function testPropertiesSwapExactAmountOut() public {
         uint256 amountOfYield = 100;
         uint256 wantedAmountIn = 20;
         uint256[] memory exactAmountsOut = new uint256[](3);
@@ -217,7 +218,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertLt(exactAmountsOut[1], exactAmountsOut[2]);
     }
 
-    function testSwapExactAmountOutMinimumValues() public {
+    function testMinimumValuesSwapExactAmountOut() public {
         LiquidationPair lp = factory.createPair(
             alice,
             liquidationPairYieldSource,
@@ -253,13 +254,12 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
-    function testSwapPercentageOfYield(uint256 amountOfYield, uint8 percentage) public {
-        vm.assume(amountOfYield > 0);
-        vm.assume(amountOfYield <= type(uint128).max); // NOTE: Hardcoded boundary
+    function testSwapPercentageOfYield(uint128 amountOfYield, uint8 percentage) public {
+        vm.assume(amountOfYield < type(uint112).max);
         vm.assume(percentage > 0);
         vm.assume(percentage <= 100);
 
-        // NOTE: swap multiplier of 0
+        // Note: swap multiplier of 0
         liquidationPair = factory.createPair(
             alice,
             liquidationPairYieldSource,
@@ -267,7 +267,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
-            UFixed32x9.wrap(type(uint32).max),
+            UFixed32x9.wrap(1e9),
             amountOfYield,
             amountOfYield
         );
@@ -323,7 +323,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.stopPrank();
     }
 
-    function testSeriesOfSwaps(uint256 amountOfYield) public {
+    function testSeriesOfSwaps(uint128 amountOfYield) public {
         vm.startPrank(alice);
         vm.assume(amountOfYield / 10 > 0);
         vm.assume(amountOfYield < type(uint112).max);
@@ -335,7 +335,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.approve(address(liquidationPair), type(uint256).max);
         tokenIn.mint(alice, 100);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, false, false, true);
         emit Swapped(alice, amountIn, amountOut);
 
         uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, type(uint256).max);
@@ -378,7 +378,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             defaultTarget,
             tokenIn,
             tokenOut,
-            UFixed32x9.wrap(1e9),
+            UFixed32x9.wrap(5e5),
             UFixed32x9.wrap(1),
             1000,
             1000
@@ -389,7 +389,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             defaultTarget,
             tokenIn,
             tokenOut,
-            UFixed32x9.wrap(type(uint32).max),
+            UFixed32x9.wrap(1e9),
             UFixed32x9.wrap(1),
             1000,
             1000
@@ -403,9 +403,10 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         tokenIn.approve(address(lp3), type(uint256).max);
         tokenIn.mint(alice, 1000);
 
-        uint256 amountIn1 = lp1.swapExactAmountOut(10, type(uint256).max);
-        uint256 amountIn2 = lp2.swapExactAmountOut(10, type(uint256).max);
-        uint256 amountIn3 = lp3.swapExactAmountOut(10, type(uint256).max);
+        uint256 amountOut = 10;
+        uint256 amountIn1 = lp1.swapExactAmountOut(amountOut, type(uint256).max);
+        uint256 amountIn2 = lp2.swapExactAmountOut(amountOut, type(uint256).max);
+        uint256 amountIn3 = lp3.swapExactAmountOut(amountOut, type(uint256).max);
 
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
@@ -436,7 +437,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
-            UFixed32x9.wrap(1e9),
+            UFixed32x9.wrap(1e7),
             1000,
             1000
         );
@@ -447,7 +448,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
-            UFixed32x9.wrap(type(uint32).max),
+            UFixed32x9.wrap(1e9),
             1000,
             1000
         );
