@@ -14,7 +14,7 @@ contract MockLiquidationPairYieldSource is ILiquidationSource {
         return MockERC20(token).balanceOf(address(this));
     }
 
-    function transfer(address token, address to, uint256 amount) external returns (bool) {
+    function liquidateTo(address token, address to, uint256 amount) external returns (bool) {
         return MockERC20(token).transfer(to, amount);
     }
 

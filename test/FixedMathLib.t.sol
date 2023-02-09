@@ -11,7 +11,6 @@ import {ILiquidationSource} from "../src/interfaces/ILiquidationSource.sol";
 import {BaseSetup} from "./utils/BaseSetup.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockFixedMathLib} from "./mocks/MockFixedMathLib.sol";
-import {MockLiquidationPairYieldSource} from "./mocks/MockLiquidationPairYieldSource.sol";
 
 contract FixedMathLibTest is BaseSetup {
     MockFixedMathLib public lib;

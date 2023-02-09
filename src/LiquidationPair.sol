@@ -101,7 +101,7 @@ contract LiquidationPair is Manageable {
     // Note: Uniswap has restrictions on _account, but we don't
     // Note: Uniswap requires _amountOut to be > 0, but we don't
     function _swap(address _account, uint256 _amountOut, uint256 _amountIn) internal {
-        source.transfer(address(tokenOut), _account, _amountOut);
+        source.liquidateTo(address(tokenOut), _account, _amountOut);
         tokenIn.transferFrom(_account, target, _amountIn);
     }
 }
