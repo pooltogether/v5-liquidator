@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
-import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 import {UFixed32x9} from "../src/libraries/FixedMathLib.sol";
 import {LiquidationPairFactory} from "../src/LiquidationPairFactory.sol";
@@ -14,17 +13,16 @@ import {MockLiquidationPairYieldSource} from "./mocks/MockLiquidationPairYieldSo
 
 contract LiquidationPairFactoryTest is BaseSetup {
     LiquidationPairFactory public factory;
-    MockERC20 public tokenIn;
-    MockERC20 public tokenOut;
+    address public tokenIn;
+    address public tokenOut;
     MockLiquidationPairYieldSource public source;
     address public target = 0x27fcf06DcFFdDB6Ec5F62D466987e863ec6aE6A0;
 
     event PairCreated(
         LiquidationPair indexed liquidator,
         ILiquidationSource indexed source,
-        address target,
-        IERC20 indexed tokenIn,
-        IERC20 tokenOut,
+        address indexed tokenIn,
+        address tokenOut,
         UFixed32x9 swapMultiplier,
         UFixed32x9 liquidityFraction,
         uint128 virtualReserveIn,
@@ -35,9 +33,9 @@ contract LiquidationPairFactoryTest is BaseSetup {
         super.setUp();
         // Contract setup
         factory = new LiquidationPairFactory();
-        tokenIn = new MockERC20("tokenIn", "IN", 18);
-        tokenOut = new MockERC20("tokenOut", "OUT", 18);
-        source = new MockLiquidationPairYieldSource();
+        tokenIn = address(new MockERC20("tokenIn", "IN", 18));
+        tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
+        source = new MockLiquidationPairYieldSource(target);
     }
 
     function testCreatePair() public {
@@ -45,7 +43,6 @@ contract LiquidationPairFactoryTest is BaseSetup {
         emit PairCreated(
             LiquidationPair(0x0000000000000000000000000000000000000000),
             source,
-            address(target),
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(300000),
@@ -53,10 +50,17 @@ contract LiquidationPairFactoryTest is BaseSetup {
             100,
             100
             );
+
         LiquidationPair lp = factory.createPair(
-            address(this), source, target, tokenIn, tokenOut, UFixed32x9.wrap(300000), UFixed32x9.wrap(20000), 100, 100
+            source,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(300000),
+            UFixed32x9.wrap(20000),
+            100,
+            100
         );
-        assertEq(lp.owner(), address(this));
+
         assertEq(address(lp.source()), address(source));
         assertEq(lp.target(), address(target));
         assertEq(address(lp.tokenIn()), address(tokenIn));
@@ -69,8 +73,15 @@ contract LiquidationPairFactoryTest is BaseSetup {
 
     function testCannotCreatePair() public {
         vm.expectRevert(bytes("LiquidationPair/liquidity-fraction-greater-than-zero"));
+
         factory.createPair(
-            address(this), source, target, tokenIn, tokenOut, UFixed32x9.wrap(300000), UFixed32x9.wrap(0), 100, 100
+            source,
+            tokenIn,
+            tokenOut,
+            UFixed32x9.wrap(300000),
+            UFixed32x9.wrap(0),
+            100,
+            100
         );
     }
 }

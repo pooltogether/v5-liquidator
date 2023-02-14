@@ -31,12 +31,12 @@ contract MockLiquidatorLibTest is BaseSetup {
         mockLiquidatorLib.getAmountOut(100, 100, 0);
     }
 
-    function testGetAmountOutFuzz(uint256 amountIn, uint128 reserve1, uint128 reserve0) public {
+    function testGetAmountOutFuzz(uint256 amountIn, uint128 reserve1, uint128 reserve0) public view {
         getAmountOutAssumptions(amountIn, reserve1, reserve0);
         mockLiquidatorLib.getAmountOut(amountIn, reserve1, reserve0);
     }
 
-    function testFailGetAmountOutOverflow() public {
+    function testFailGetAmountOutOverflow() public view {
         mockLiquidatorLib.getAmountOut(type(uint256).max, type(uint128).max, type(uint128).max);
     }
 
@@ -57,7 +57,7 @@ contract MockLiquidatorLibTest is BaseSetup {
         mockLiquidatorLib.getAmountIn(amountOut, reserve1, reserve0);
     }
 
-    function testFailGetAmountInOverflow() public {
+    function testFailGetAmountInOverflow() public view {
         mockLiquidatorLib.getAmountIn(type(uint256).max - 1, type(uint128).max, type(uint128).max);
     }
 
@@ -74,7 +74,7 @@ contract MockLiquidatorLibTest is BaseSetup {
         mockLiquidatorLib.virtualBuyback(0, 10, 10);
     }
 
-    function testPerpareSwapFuzz(uint128 reserve0, uint128 reserve1, uint256 amountIn1) public {
+    function testPerpareSwapFuzz(uint128 reserve0, uint128 reserve1, uint256 amountIn1) public view {
         virtualBuybackAssumptions(reserve0, reserve1, amountIn1);
         mockLiquidatorLib.virtualBuyback(reserve0, reserve1, amountIn1);
     }
@@ -91,7 +91,7 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testComputeExactAmountInFuzz(uint128 _reserve0, uint128 _reserve1, uint256 _amountIn1, uint256 _amountOut1)
-        public
+        public view
     {
         computeExactAmountInAssumptions(_reserve0, _reserve1, _amountIn1, _amountOut1);
         mockLiquidatorLib.computeExactAmountIn(_reserve0, _reserve1, _amountIn1, _amountOut1);
@@ -109,7 +109,7 @@ contract MockLiquidatorLibTest is BaseSetup {
     }
 
     function testComputeExactAmountOutFuzz(uint128 _reserve0, uint128 _reserve1, uint256 _amountIn1, uint256 _amountIn0)
-        public
+        public view
     {
         computeExactAmountOutAssumptions(_reserve0, _reserve1, _amountIn1, _amountIn0);
         mockLiquidatorLib.computeExactAmountOut(_reserve0, _reserve1, _amountIn1, _amountIn0);
@@ -129,7 +129,7 @@ contract MockLiquidatorLibTest is BaseSetup {
         uint256 _amountOut1,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction
-    ) public {
+    ) public view {
 
         vm.assume(_amountOut1 <= _amountIn1);
         vm.assume(_amountIn1 < type(uint112).max);
@@ -248,7 +248,7 @@ contract MockLiquidatorLibTest is BaseSetup {
         uint128 _reserve1,
         uint256 _amountIn1,
         uint32 _liquidityFraction
-    ) public view {
+    ) public pure {
         vm.assume(_liquidityFraction <= 1e9);
         vm.assume(_liquidityFraction > 0);
 

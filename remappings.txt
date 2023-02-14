@@ -3,3 +3,4 @@ forge-std/=lib/forge-std/src/
 owner-manager-contracts/=lib/owner-manager-contracts/contracts/
 solmate/=lib/solmate/src/
 openzeppelin/=lib/openzeppelin-contracts/contracts
+src/=src/

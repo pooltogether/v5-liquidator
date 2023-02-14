@@ -1,43 +1,39 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.17;
 
-import "openzeppelin/token/ERC20/IERC20.sol";
-import "owner-manager-contracts/Manageable.sol";
-
 import "./libraries/LiquidatorLib.sol";
 import "./libraries/FixedMathLib.sol";
 import "./interfaces/ILiquidationSource.sol";
 
-contract LiquidationPair is Manageable {
-    // Config
+contract LiquidationPair {
+    /* ============ Variables ============ */
     ILiquidationSource public immutable source; // Where to get tokenIn from
-    address public immutable target; // Where to send tokenOut
-    IERC20 public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
-    IERC20 public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
+    address public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
+    address public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
     UFixed32x9 public immutable swapMultiplier; // 9 decimals
     UFixed32x9 public immutable liquidityFraction; // 9 decimals
 
     uint128 public virtualReserveIn;
     uint128 public virtualReserveOut;
 
+    /* ============ Events ============ */
     event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
 
+    /* ============ Constructor ============ */
+
     constructor(
-        address _owner,
         ILiquidationSource _source,
-        address _target,
-        IERC20 _tokenIn,
-        IERC20 _tokenOut,
+        address _tokenIn,
+        address _tokenOut,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction,
         uint128 _virtualReserveIn,
         uint128 _virtualReserveOut
-    ) Ownable(_owner) {
+    ) {
         require(UFixed32x9.unwrap(_liquidityFraction) > 0, "LiquidationPair/liquidity-fraction-greater-than-zero");
         require(UFixed32x9.unwrap(_swapMultiplier) <= 1e9, "LiquidationPair/swap-multiplier-less-than-one");
         require(UFixed32x9.unwrap(_liquidityFraction) <= 1e9, "LiquidationPair/liquidity-fraction-less-than-one");
         source = _source;
-        target = _target;
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
         swapMultiplier = _swapMultiplier;
@@ -46,12 +42,14 @@ contract LiquidationPair is Manageable {
         virtualReserveOut = _virtualReserveOut;
     }
 
+    /* ============ External Function ============ */
+
     function maxAmountOut() external returns (uint256) {
         return _availableReserveOut();
     }
 
     function _availableReserveOut() internal returns (uint256) {
-        return source.availableBalanceOf(address(tokenOut));
+        return source.availableBalanceOf(tokenOut);
     }
 
     function nextLiquidationState() external returns (uint128, uint128) {
@@ -68,22 +66,24 @@ contract LiquidationPair is Manageable {
             LiquidatorLib.computeExactAmountOut(virtualReserveIn, virtualReserveOut, _availableReserveOut(), _amountIn);
     }
 
-    function swapExactAmountIn(uint256 _amountIn, uint256 _amountOutMin) external returns (uint256) {
+    function swapExactAmountIn(address _account, uint256 _amountIn, uint256 _amountOutMin) external returns (uint256) {
         uint256 availableBalance = _availableReserveOut();
         (uint128 _virtualReserveIn, uint128 _virtualReserveOut, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
             virtualReserveIn, virtualReserveOut, availableBalance, _amountIn, swapMultiplier, liquidityFraction
         );
+
         virtualReserveIn = _virtualReserveIn;
         virtualReserveOut = _virtualReserveOut;
-        require(amountOut >= _amountOutMin, "LiquidationPair/min-not-guaranteed");
-        _swap(msg.sender, amountOut, _amountIn);
 
-        emit Swapped(msg.sender, _amountIn, amountOut);
+        require(amountOut >= _amountOutMin, "LiquidationPair/min-not-guaranteed");
+        _swap(_account, amountOut, _amountIn);
+
+        emit Swapped(_account, _amountIn, amountOut);
 
         return amountOut;
     }
 
-    function swapExactAmountOut(uint256 _amountOut, uint256 _amountInMax) external returns (uint256) {
+    function swapExactAmountOut(address _account, uint256 _amountOut, uint256 _amountInMax) external returns (uint256) {
         uint256 availableBalance = _availableReserveOut();
         (uint128 _virtualReserveIn, uint128 _virtualReserveOut, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
             virtualReserveIn, virtualReserveOut, availableBalance, _amountOut, swapMultiplier, liquidityFraction
@@ -91,17 +91,26 @@ contract LiquidationPair is Manageable {
         virtualReserveIn = _virtualReserveIn;
         virtualReserveOut = _virtualReserveOut;
         require(amountIn <= _amountInMax, "LiquidationPair/max-not-guaranteed");
-        _swap(msg.sender, _amountOut, amountIn);
+        _swap(_account, _amountOut, amountIn);
 
-        emit Swapped(msg.sender, amountIn, _amountOut);
+        emit Swapped(_account, amountIn, _amountOut);
 
         return amountIn;
     }
 
+    /**
+     * @notice Get the address that will receive `tokenIn`.
+     * @return address Address of the target
+     */
+    function target() external returns(address) {
+        return source.targetOf(tokenIn);
+    }
+
+    /* ============ Internal Functions ============ */
+
     // Note: Uniswap has restrictions on _account, but we don't
     // Note: Uniswap requires _amountOut to be > 0, but we don't
     function _swap(address _account, uint256 _amountOut, uint256 _amountIn) internal {
-        source.liquidateTo(address(tokenOut), _account, _amountOut);
-        tokenIn.transferFrom(_account, target, _amountIn);
+        source.liquidate(_account, tokenIn, _amountIn, tokenOut, _amountOut);
     }
 }

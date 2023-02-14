@@ -4,25 +4,35 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
-import {LiquidationPairFactory} from "../src/LiquidationPairFactory.sol";
-import {LiquidationPair} from "../src/LiquidationPair.sol";
-import {ILiquidationSource} from "../src/interfaces/ILiquidationSource.sol";
-import {LiquidatorLib} from "../src/libraries/LiquidatorLib.sol";
-import {UFixed32x9} from "../src/libraries/FixedMathLib.sol";
+import {LiquidationPairFactory} from "src/LiquidationPairFactory.sol";
+import {LiquidationPair} from "src/LiquidationPair.sol";
+import {LiquidationRouter} from "src/LiquidationRouter.sol";
+
+import {ILiquidationSource} from "src/interfaces/ILiquidationSource.sol";
+
+import {LiquidatorLib} from "src/libraries/LiquidatorLib.sol";
+import {UFixed32x9} from "src/libraries/FixedMathLib.sol";
+
 import {BaseSetup} from "./utils/BaseSetup.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockLiquidationPairFactory} from "./mocks/MockLiquidationPairFactory.sol";
 import {MockLiquidationPairYieldSource} from "./mocks/MockLiquidationPairYieldSource.sol";
 
 abstract contract LiquidationPairBaseSetup is BaseSetup {
     address defaultTarget;
+
     UFixed32x9 defaultSwapMultiplier;
     UFixed32x9 defaultLiquidityFraction;
     uint128 defaultVirtualReserveIn;
     uint128 defaultVirtualReserveOut;
+
+    LiquidationRouter public liquidationRouter;
     LiquidationPair public liquidationPair;
-    LiquidationPairFactory public factory;
-    MockERC20 public tokenIn;
-    MockERC20 public tokenOut;
+
+    address public tokenIn;
+    address public tokenOut;
+
+    MockLiquidationPairFactory public factory;
     MockLiquidationPairYieldSource public liquidationPairYieldSource;
 
     event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
@@ -39,14 +49,19 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
         defaultLiquidityFraction = _liquidityFraction;
         defaultVirtualReserveIn = _virtualReserveIn;
         defaultVirtualReserveOut = _virtualReserveOut;
-        factory = new LiquidationPairFactory();
-        tokenIn = new MockERC20("tokenIn", "IN", 18);
-        tokenOut = new MockERC20("tokenOut", "OUT", 18);
-        liquidationPairYieldSource = new MockLiquidationPairYieldSource();
+
+
+        tokenIn = address(new MockERC20("tokenIn", "IN", 18));
+        tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
+
+        liquidationPairYieldSource = new MockLiquidationPairYieldSource(_target);
+
+        factory = new MockLiquidationPairFactory();
+
+        liquidationRouter = new LiquidationRouter(factory);
+
         liquidationPair = factory.createPair(
-            address(this),
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             defaultSwapMultiplier,
@@ -107,18 +122,26 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountOutMin = liquidationPair.computeExactAmountOut(exactAmountIn);
 
         vm.startPrank(alice);
-        tokenIn.mint(alice, exactAmountIn);
-        tokenIn.approve(address(liquidationPair), exactAmountIn);
+
+        MockERC20(tokenIn).mint(alice, exactAmountIn);
+        MockERC20(tokenIn).approve(address(liquidationRouter), exactAmountIn);
+
         vm.expectEmit(true, false, false, true);
         emit Swapped(alice, exactAmountIn, amountOutMin);
-        uint256 swappedAmountOut = liquidationPair.swapExactAmountIn(exactAmountIn, amountOutMin);
+
+        uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
+            [tokenIn, tokenOut],
+            alice,
+            exactAmountIn,
+            amountOutMin
+        );
 
         vm.stopPrank();
 
         assertGe(swappedAmountOut, amountOutMin);
-        assertEq(tokenOut.balanceOf(alice), swappedAmountOut);
-        assertEq(tokenIn.balanceOf(alice), 0);
-        assertEq(tokenIn.balanceOf(defaultTarget), exactAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), swappedAmountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), 0);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), exactAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOutMin);
         assertGe(liquidationPair.virtualReserveIn(), exactAmountIn);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
@@ -141,10 +164,10 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testSwapExactAmountInMinimumValues() public {
+        factory.deletePair(tokenIn, tokenOut);
+
         LiquidationPair lp = factory.createPair(
-            alice,
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -160,18 +183,26 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountOutMin = lp.computeExactAmountOut(exactAmountIn);
 
         vm.startPrank(alice);
-        tokenIn.mint(alice, exactAmountIn);
-        tokenIn.approve(address(lp), exactAmountIn);
+
+        MockERC20(tokenIn).mint(alice, exactAmountIn);
+        MockERC20(tokenIn).approve(address(liquidationRouter), exactAmountIn);
+
         vm.expectEmit(true, false, false, true);
         emit Swapped(alice, exactAmountIn, amountOutMin);
-        uint256 swappedAmountOut = lp.swapExactAmountIn(exactAmountIn, amountOutMin);
+
+        uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
+            [tokenIn, tokenOut],
+            alice,
+            exactAmountIn,
+            amountOutMin
+        );
 
         vm.stopPrank();
 
         assertGe(swappedAmountOut, amountOutMin);
-        assertEq(tokenOut.balanceOf(alice), swappedAmountOut);
-        assertEq(tokenIn.balanceOf(alice), 0);
-        assertEq(tokenIn.balanceOf(defaultTarget), exactAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), swappedAmountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), 0);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), exactAmountIn);
         assertEq(lp.maxAmountOut(), amountOfYield - amountOutMin);
         assertGe(liquidationPair.virtualReserveIn(), exactAmountIn);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
@@ -186,20 +217,29 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountInMax = liquidationPair.computeExactAmountIn(amountOut);
 
         vm.startPrank(alice);
-        tokenIn.mint(alice, amountInMax);
-        tokenIn.approve(address(liquidationPair), amountInMax);
+
+        MockERC20(tokenIn).mint(alice, amountInMax);
+        MockERC20(tokenIn).approve(address(liquidationRouter), amountInMax);
+
         vm.expectEmit(true, false, false, true);
         emit Swapped(alice, amountInMax, amountOut);
-        uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, amountInMax);
-        vm.stopPrank();
+
+        uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            amountOut,
+            amountInMax
+        );
 
         assertLe(swappedAmountIn, amountInMax);
-        assertEq(tokenOut.balanceOf(alice), amountOut);
-        assertEq(tokenIn.balanceOf(alice), amountInMax - swappedAmountIn);
-        assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), amountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), amountInMax - swappedAmountIn);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut);
         assertGe(liquidationPair.virtualReserveIn(), amountInMax);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
+
+        vm.stopPrank();
     }
 
     function testPropertiesSwapExactAmountOut() public {
@@ -219,10 +259,10 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testMinimumValuesSwapExactAmountOut() public {
+        factory.deletePair(tokenIn, tokenOut);
+
         LiquidationPair lp = factory.createPair(
-            alice,
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -230,6 +270,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1,
             1
         );
+
         uint256 amountOfYield = 10;
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
@@ -237,21 +278,29 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountInMax = lp.computeExactAmountIn(wantedAmountOut);
 
         vm.startPrank(alice);
-        tokenIn.mint(alice, amountInMax);
-        tokenIn.approve(address(lp), amountInMax);
-        vm.expectEmit(true, true, true, true);
-        emit Swapped(alice, amountInMax, wantedAmountOut);
-        uint256 swappedAmountIn = lp.swapExactAmountOut(wantedAmountOut, amountInMax);
 
-        vm.stopPrank();
+        MockERC20(tokenIn).mint(alice, amountInMax);
+        MockERC20(tokenIn).approve(address(liquidationRouter), amountInMax);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit Swapped(alice, amountInMax, wantedAmountOut);
+        uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            wantedAmountOut,
+            amountInMax
+        );
 
         assertLe(swappedAmountIn, amountInMax);
-        assertEq(tokenOut.balanceOf(alice), wantedAmountOut);
-        assertEq(tokenIn.balanceOf(alice), amountInMax - swappedAmountIn);
-        assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), wantedAmountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), amountInMax - swappedAmountIn);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - wantedAmountOut);
         assertGe(liquidationPair.virtualReserveIn(), swappedAmountIn);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
+
+        vm.stopPrank();
     }
 
     function testSwapPercentageOfYield(uint128 amountOfYield, uint8 percentage) public {
@@ -259,11 +308,11 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.assume(percentage > 0);
         vm.assume(percentage <= 100);
 
+        factory.deletePair(tokenIn, tokenOut);
+
         // Note: swap multiplier of 0
         liquidationPair = factory.createPair(
-            alice,
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -279,16 +328,24 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountInMax = liquidationPair.computeExactAmountIn(amountOut);
 
         vm.startPrank(alice);
-        tokenIn.mint(alice, amountInMax);
-        tokenIn.approve(address(liquidationPair), amountInMax);
-        uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, amountInMax);
-        vm.stopPrank();
+
+        MockERC20(tokenIn).mint(alice, amountInMax);
+        MockERC20(tokenIn).approve(address(liquidationRouter), amountInMax);
+
+        uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            amountOut,
+            amountInMax
+        );
 
         assertLe(swappedAmountIn, amountInMax);
-        assertEq(tokenOut.balanceOf(alice), amountOut);
-        assertEq(tokenIn.balanceOf(alice), amountInMax - swappedAmountIn);
-        assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), amountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), amountInMax - swappedAmountIn);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut);
+
+        vm.stopPrank();
     }
 
     function testCannotSwapExactAmountIn() public {
@@ -299,11 +356,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountIn = liquidationPair.computeExactAmountIn(amountOut);
 
         vm.startPrank(alice);
-        tokenOut.mint(alice, amountIn);
-        tokenOut.approve(address(liquidationPair), amountIn);
+
+        MockERC20(tokenIn).mint(alice, amountIn);
+        MockERC20(tokenIn).approve(address(liquidationRouter), amountIn);
 
         vm.expectRevert(bytes("LiquidationPair/min-not-guaranteed"));
-        liquidationPair.swapExactAmountIn(amountIn, type(uint256).max);
+        liquidationRouter.swapExactAmountIn(
+            [tokenIn, tokenOut],
+            alice,
+            amountIn,
+            type(uint256).max
+        );
+
         vm.stopPrank();
     }
 
@@ -315,11 +379,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountInMax = liquidationPair.computeExactAmountIn(amountOut);
 
         vm.startPrank(alice);
-        tokenOut.mint(alice, amountInMax);
-        tokenOut.approve(address(liquidationPair), amountInMax);
+
+        MockERC20(tokenIn).mint(alice, amountInMax);
+        MockERC20(tokenIn).approve(address(liquidationRouter), amountInMax);
 
         vm.expectRevert(bytes("LiquidationPair/max-not-guaranteed"));
-        liquidationPair.swapExactAmountOut(amountOut, 0);
+        liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            amountOut,
+            0
+        );
+
         vm.stopPrank();
     }
 
@@ -332,28 +403,38 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         uint256 amountOut = amountOfYield / 10;
         uint256 amountIn = liquidationPair.computeExactAmountIn(amountOut);
 
-        tokenIn.approve(address(liquidationPair), type(uint256).max);
-        tokenIn.mint(alice, 100);
+        MockERC20(tokenIn).approve(address(liquidationRouter), type(uint256).max);
+        MockERC20(tokenIn).mint(alice, 100);
 
         vm.expectEmit(true, false, false, true);
         emit Swapped(alice, amountIn, amountOut);
 
-        uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(amountOut, type(uint256).max);
+        uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            amountOut,
+            type(uint256).max
+        );
 
         assertGe(liquidationPair.virtualReserveIn(), amountIn);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
 
-        assertEq(tokenOut.balanceOf(alice), amountOut);
-        assertEq(tokenIn.balanceOf(alice), 100 - swappedAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), amountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), 100 - swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut);
-        assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
 
-        uint256 swappedAmountOut = liquidationPair.swapExactAmountIn(swappedAmountIn, 0);
+        uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
+            [tokenIn, tokenOut],
+            alice,
+            swappedAmountIn,
+            0
+        );
 
-        assertEq(tokenOut.balanceOf(alice), amountOut + swappedAmountOut);
-        assertEq(tokenIn.balanceOf(alice), 100 - swappedAmountIn - swappedAmountIn);
+        assertEq(MockERC20(tokenOut).balanceOf(alice), amountOut + swappedAmountOut);
+        assertEq(MockERC20(tokenIn).balanceOf(alice), 100 - swappedAmountIn - swappedAmountIn);
         assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut - swappedAmountOut);
-        assertEq(tokenIn.balanceOf(defaultTarget), swappedAmountIn + swappedAmountIn);
+        assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn + swappedAmountIn);
 
         assertGe(liquidationPair.virtualReserveIn(), amountIn);
         assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
@@ -361,10 +442,19 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testSwapMultiplierProperties() public {
+        liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
+
+        vm.startPrank(alice);
+
+        MockERC20(tokenIn).approve(address(liquidationRouter), type(uint256).max);
+        MockERC20(tokenIn).mint(alice, 1000);
+
+        uint256 amountOut = 10;
+
+        factory.deletePair(tokenIn, tokenOut);
+
         LiquidationPair lp1 = factory.createPair(
-            alice,
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -372,10 +462,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000,
             1000
         );
-        LiquidationPair lp2 = factory.createPair(
+
+        uint256 amountIn1 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
             alice,
+            amountOut,
+            type(uint256).max
+        );
+
+        factory.deletePair(tokenIn, tokenOut);
+
+        LiquidationPair lp2 = factory.createPair(
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(5e5),
@@ -383,10 +481,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000,
             1000
         );
-        LiquidationPair lp3 = factory.createPair(
+
+        uint256 amountIn2 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
             alice,
+            amountOut,
+            type(uint256).max
+        );
+
+        factory.deletePair(tokenIn, tokenOut);
+
+        LiquidationPair lp3 = factory.createPair(
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(1e9),
@@ -395,18 +501,12 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000
         );
 
-        liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
-
-        vm.startPrank(alice);
-        tokenIn.approve(address(lp1), type(uint256).max);
-        tokenIn.approve(address(lp2), type(uint256).max);
-        tokenIn.approve(address(lp3), type(uint256).max);
-        tokenIn.mint(alice, 1000);
-
-        uint256 amountOut = 10;
-        uint256 amountIn1 = lp1.swapExactAmountOut(amountOut, type(uint256).max);
-        uint256 amountIn2 = lp2.swapExactAmountOut(amountOut, type(uint256).max);
-        uint256 amountIn3 = lp3.swapExactAmountOut(amountOut, type(uint256).max);
+        uint256 amountIn3 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            amountOut,
+            type(uint256).max
+        );
 
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
@@ -419,10 +519,17 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testLiquidityFractionProperties() public {
+        liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
+
+        vm.startPrank(alice);
+
+        MockERC20(tokenIn).approve(address(liquidationRouter), type(uint256).max);
+        MockERC20(tokenIn).mint(alice, 1000);
+
+        factory.deletePair(tokenIn, tokenOut);
+
         LiquidationPair lp1 = factory.createPair(
-            alice,
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -430,10 +537,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000,
             1000
         );
-        LiquidationPair lp2 = factory.createPair(
+
+        uint256 amountIn1 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
             alice,
+            10,
+            type(uint256).max
+        );
+
+        factory.deletePair(tokenIn, tokenOut);
+
+        LiquidationPair lp2 = factory.createPair(
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -441,10 +556,18 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000,
             1000
         );
-        LiquidationPair lp3 = factory.createPair(
+
+        uint256 amountIn2 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
             alice,
+            10,
+            type(uint256).max
+        );
+
+        factory.deletePair(tokenIn, tokenOut);
+
+        LiquidationPair lp3 = factory.createPair(
             liquidationPairYieldSource,
-            defaultTarget,
             tokenIn,
             tokenOut,
             UFixed32x9.wrap(0),
@@ -453,17 +576,12 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
             1000
         );
 
-        liquidationPairYieldSource.accrueYield(address(tokenOut), 1000);
-
-        vm.startPrank(alice);
-        tokenIn.approve(address(lp1), type(uint256).max);
-        tokenIn.approve(address(lp2), type(uint256).max);
-        tokenIn.approve(address(lp3), type(uint256).max);
-        tokenIn.mint(alice, 1000);
-
-        uint256 amountIn1 = lp1.swapExactAmountOut(10, type(uint256).max);
-        uint256 amountIn2 = lp2.swapExactAmountOut(10, type(uint256).max);
-        uint256 amountIn3 = lp3.swapExactAmountOut(10, type(uint256).max);
+        uint256 amountIn3 = liquidationRouter.swapExactAmountOut(
+            [tokenIn, tokenOut],
+            alice,
+            10,
+            type(uint256).max
+        );
 
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
