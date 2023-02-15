@@ -21,11 +21,6 @@ contract LiquidationPairFactory {
     /* ============ Variables ============ */
     LiquidationPair[] public allPairs;
 
-    /* ============ Mappings ============ */
-
-    /// @notice tokenIn => tokenOut => pair
-    mapping(address => mapping(address => LiquidationPair)) public getPair;
-
     /* ============ External Functions ============ */
     function allPairsLength() external view returns (uint) {
         return allPairs.length;
@@ -40,8 +35,6 @@ contract LiquidationPairFactory {
         uint128 _virtualReserveIn,
         uint128 _virtualReserveOut
     ) external returns (LiquidationPair) {
-        require(address(getPair[_tokenIn][_tokenOut]) == address(0), 'LPF/pair-exists');
-
         LiquidationPair _liquidationPair = new LiquidationPair(
             _source,
             _tokenIn,
@@ -52,7 +45,6 @@ contract LiquidationPairFactory {
             _virtualReserveOut
         );
 
-        getPair[_tokenIn][_tokenOut] = _liquidationPair;
         allPairs.push(_liquidationPair);
 
         emit PairCreated(

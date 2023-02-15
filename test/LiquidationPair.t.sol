@@ -15,7 +15,6 @@ import {UFixed32x9} from "src/libraries/FixedMathLib.sol";
 
 import {BaseSetup} from "./utils/BaseSetup.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
-import {MockLiquidationPairFactory} from "./mocks/MockLiquidationPairFactory.sol";
 import {MockLiquidationPairYieldSource} from "./mocks/MockLiquidationPairYieldSource.sol";
 
 abstract contract LiquidationPairBaseSetup is BaseSetup {
@@ -32,7 +31,7 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
     address public tokenIn;
     address public tokenOut;
 
-    MockLiquidationPairFactory public factory;
+    LiquidationPairFactory public factory;
     MockLiquidationPairYieldSource public liquidationPairYieldSource;
 
     event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
@@ -56,7 +55,7 @@ abstract contract LiquidationPairBaseSetup is BaseSetup {
 
         liquidationPairYieldSource = new MockLiquidationPairYieldSource(_target);
 
-        factory = new MockLiquidationPairFactory();
+        factory = new LiquidationPairFactory();
 
         liquidationRouter = new LiquidationRouter(factory);
 
@@ -130,7 +129,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         emit Swapped(alice, exactAmountIn, amountOutMin);
 
         uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             exactAmountIn,
             amountOutMin
@@ -164,9 +163,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testSwapExactAmountInMinimumValues() public {
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp = factory.createPair(
+        LiquidationPair _liquidationPair = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -179,8 +176,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
         uint256 wantedAmountOut = 1;
-        uint256 exactAmountIn = lp.computeExactAmountIn(wantedAmountOut);
-        uint256 amountOutMin = lp.computeExactAmountOut(exactAmountIn);
+        uint256 exactAmountIn = _liquidationPair.computeExactAmountIn(wantedAmountOut);
+        uint256 amountOutMin = _liquidationPair.computeExactAmountOut(exactAmountIn);
 
         vm.startPrank(alice);
 
@@ -191,7 +188,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         emit Swapped(alice, exactAmountIn, amountOutMin);
 
         uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
-            [tokenIn, tokenOut],
+            _liquidationPair,
             alice,
             exactAmountIn,
             amountOutMin
@@ -203,14 +200,15 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(MockERC20(tokenOut).balanceOf(alice), swappedAmountOut);
         assertEq(MockERC20(tokenIn).balanceOf(alice), 0);
         assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), exactAmountIn);
-        assertEq(lp.maxAmountOut(), amountOfYield - amountOutMin);
-        assertGe(liquidationPair.virtualReserveIn(), exactAmountIn);
-        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
+        assertEq(_liquidationPair.maxAmountOut(), amountOfYield - amountOutMin);
+        assertGe(_liquidationPair.virtualReserveIn(), exactAmountIn);
+        assertGe(_liquidationPair.virtualReserveOut(), amountOfYield);
     }
 
     function testSwapExactAmountOut(uint256 amountOut) public {
         vm.assume(amountOut > 0);
         vm.assume(amountOut <= type(uint112).max);
+
         uint256 amountOfYield = amountOut * 2;
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
@@ -225,7 +223,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         emit Swapped(alice, amountInMax, amountOut);
 
         uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             amountOut,
             amountInMax
@@ -259,9 +257,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
     }
 
     function testMinimumValuesSwapExactAmountOut() public {
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp = factory.createPair(
+        LiquidationPair _liquidationPair = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -275,7 +271,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         liquidationPairYieldSource.accrueYield(address(tokenOut), amountOfYield);
 
         uint256 wantedAmountOut = 1;
-        uint256 amountInMax = lp.computeExactAmountIn(wantedAmountOut);
+        uint256 amountInMax = _liquidationPair.computeExactAmountIn(wantedAmountOut);
 
         vm.startPrank(alice);
 
@@ -286,7 +282,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         emit Swapped(alice, amountInMax, wantedAmountOut);
         uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            _liquidationPair,
             alice,
             wantedAmountOut,
             amountInMax
@@ -296,9 +292,9 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(MockERC20(tokenOut).balanceOf(alice), wantedAmountOut);
         assertEq(MockERC20(tokenIn).balanceOf(alice), amountInMax - swappedAmountIn);
         assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
-        assertEq(liquidationPair.maxAmountOut(), amountOfYield - wantedAmountOut);
-        assertGe(liquidationPair.virtualReserveIn(), swappedAmountIn);
-        assertGe(liquidationPair.virtualReserveOut(), amountOfYield);
+        assertEq(_liquidationPair.maxAmountOut(), amountOfYield - wantedAmountOut);
+        assertGe(_liquidationPair.virtualReserveIn(), swappedAmountIn);
+        assertGe(_liquidationPair.virtualReserveOut(), amountOfYield);
 
         vm.stopPrank();
     }
@@ -308,10 +304,8 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         vm.assume(percentage > 0);
         vm.assume(percentage <= 100);
 
-        factory.deletePair(tokenIn, tokenOut);
-
         // Note: swap multiplier of 0
-        liquidationPair = factory.createPair(
+        LiquidationPair _liquidationPair = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -325,7 +319,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         uint256 amountOut = amountOfYield * percentage / 100;
         vm.assume(amountOut > 0);
-        uint256 amountInMax = liquidationPair.computeExactAmountIn(amountOut);
+        uint256 amountInMax = _liquidationPair.computeExactAmountIn(amountOut);
 
         vm.startPrank(alice);
 
@@ -333,7 +327,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         MockERC20(tokenIn).approve(address(liquidationRouter), amountInMax);
 
         uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            _liquidationPair,
             alice,
             amountOut,
             amountInMax
@@ -343,7 +337,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(MockERC20(tokenOut).balanceOf(alice), amountOut);
         assertEq(MockERC20(tokenIn).balanceOf(alice), amountInMax - swappedAmountIn);
         assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
-        assertEq(liquidationPair.maxAmountOut(), amountOfYield - amountOut);
+        assertEq(_liquidationPair.maxAmountOut(), amountOfYield - amountOut);
 
         vm.stopPrank();
     }
@@ -362,7 +356,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         vm.expectRevert(bytes("LiquidationPair/min-not-guaranteed"));
         liquidationRouter.swapExactAmountIn(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             amountIn,
             type(uint256).max
@@ -385,7 +379,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         vm.expectRevert(bytes("LiquidationPair/max-not-guaranteed"));
         liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             amountOut,
             0
@@ -410,7 +404,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         emit Swapped(alice, amountIn, amountOut);
 
         uint256 swappedAmountIn = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             amountOut,
             type(uint256).max
@@ -425,7 +419,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         assertEq(MockERC20(tokenIn).balanceOf(defaultTarget), swappedAmountIn);
 
         uint256 swappedAmountOut = liquidationRouter.swapExactAmountIn(
-            [tokenIn, tokenOut],
+            liquidationPair,
             alice,
             swappedAmountIn,
             0
@@ -451,9 +445,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         uint256 amountOut = 10;
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp1 = factory.createPair(
+        LiquidationPair liquidationPair1 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -464,15 +456,13 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn1 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair1,
             alice,
             amountOut,
             type(uint256).max
         );
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp2 = factory.createPair(
+        LiquidationPair liquidationPair2 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -483,15 +473,13 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn2 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair2,
             alice,
             amountOut,
             type(uint256).max
         );
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp3 = factory.createPair(
+        LiquidationPair liquidationPair3 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -502,7 +490,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn3 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair3,
             alice,
             amountOut,
             type(uint256).max
@@ -510,10 +498,10 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
-        assertGe(lp2.virtualReserveIn(), lp1.virtualReserveIn());
-        assertGe(lp3.virtualReserveIn(), lp2.virtualReserveIn());
-        assertLe(lp2.virtualReserveOut(), lp1.virtualReserveOut());
-        assertLe(lp3.virtualReserveOut(), lp2.virtualReserveOut());
+        assertGe(liquidationPair2.virtualReserveIn(), liquidationPair1.virtualReserveIn());
+        assertGe(liquidationPair3.virtualReserveIn(), liquidationPair2.virtualReserveIn());
+        assertLe(liquidationPair2.virtualReserveOut(), liquidationPair1.virtualReserveOut());
+        assertLe(liquidationPair3.virtualReserveOut(), liquidationPair2.virtualReserveOut());
 
         vm.stopPrank();
     }
@@ -526,9 +514,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         MockERC20(tokenIn).approve(address(liquidationRouter), type(uint256).max);
         MockERC20(tokenIn).mint(alice, 1000);
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp1 = factory.createPair(
+        LiquidationPair liquidationPair1 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -539,15 +525,13 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn1 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair1,
             alice,
             10,
             type(uint256).max
         );
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp2 = factory.createPair(
+        LiquidationPair liquidationPair2 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -558,15 +542,13 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn2 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair2,
             alice,
             10,
             type(uint256).max
         );
 
-        factory.deletePair(tokenIn, tokenOut);
-
-        LiquidationPair lp3 = factory.createPair(
+        LiquidationPair liquidationPair3 = factory.createPair(
             liquidationPairYieldSource,
             tokenIn,
             tokenOut,
@@ -577,7 +559,7 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
         );
 
         uint256 amountIn3 = liquidationRouter.swapExactAmountOut(
-            [tokenIn, tokenOut],
+            liquidationPair3,
             alice,
             10,
             type(uint256).max
@@ -585,10 +567,10 @@ contract LiquidationPairUnitTest is LiquidationPairBaseSetup {
 
         assertEq(amountIn1, amountIn2);
         assertEq(amountIn2, amountIn3);
-        assertGe(lp1.virtualReserveIn(), lp2.virtualReserveIn());
-        assertGe(lp2.virtualReserveIn(), lp3.virtualReserveIn());
-        assertGe(lp1.virtualReserveOut(), lp2.virtualReserveOut());
-        assertGe(lp2.virtualReserveOut(), lp3.virtualReserveOut());
+        assertGe(liquidationPair1.virtualReserveIn(), liquidationPair2.virtualReserveIn());
+        assertGe(liquidationPair2.virtualReserveIn(), liquidationPair3.virtualReserveIn());
+        assertGe(liquidationPair1.virtualReserveOut(), liquidationPair2.virtualReserveOut());
+        assertGe(liquidationPair2.virtualReserveOut(), liquidationPair3.virtualReserveOut());
 
         vm.stopPrank();
     }

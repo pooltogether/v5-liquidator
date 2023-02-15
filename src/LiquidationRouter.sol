@@ -29,27 +29,23 @@ contract LiquidationRouter {
   }
 
   function swapExactAmountIn(
-    address[2] calldata _pair,
+    LiquidationPair _liquidationPair,
     address _account,
     uint256 _amountIn,
     uint256 _amountOutMin
   ) external returns (uint256) {
-    LiquidationPair _liquidationPair = _liquidationPairFactory.getPair(_pair[0], _pair[1]);
-
-    IERC20(_pair[0]).safeTransferFrom(_account, _liquidationPair.target(), _amountIn);
+    IERC20(_liquidationPair.tokenIn()).safeTransferFrom(_account, _liquidationPair.target(), _amountIn);
 
     return _liquidationPair.swapExactAmountIn(_account, _amountIn, _amountOutMin);
   }
 
   function swapExactAmountOut(
-    address[2] calldata _pair,
+    LiquidationPair _liquidationPair,
     address _account,
     uint256 _amountOut,
     uint256 _amountInMax
   ) external returns (uint256) {
-    LiquidationPair _liquidationPair = _liquidationPairFactory.getPair(_pair[0], _pair[1]);
-
-    IERC20(_pair[0]).safeTransferFrom(
+    IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
       _account,
       _liquidationPair.target(),
       _liquidationPair.computeExactAmountIn(_amountOut)
