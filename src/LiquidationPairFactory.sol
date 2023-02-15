@@ -21,11 +21,15 @@ contract LiquidationPairFactory {
     /* ============ Variables ============ */
     LiquidationPair[] public allPairs;
 
-    /* ============ External Functions ============ */
-    function allPairsLength() external view returns (uint) {
-        return allPairs.length;
-    }
+    /* ============ Mappings ============ */
 
+    /**
+     * @notice Mapping to verify if a LiquidationPair has been deployed via this factory.
+     * @dev LiquidationPair address => boolean
+     */
+    mapping(LiquidationPair => bool) public deployedPairs;
+
+    /* ============ External Functions ============ */
     function createPair(
         ILiquidationSource _source,
         address _tokenIn,
@@ -46,6 +50,7 @@ contract LiquidationPairFactory {
         );
 
         allPairs.push(_liquidationPair);
+        deployedPairs[_liquidationPair] = true;
 
         emit PairCreated(
             _liquidationPair,
@@ -59,5 +64,13 @@ contract LiquidationPairFactory {
             );
 
         return _liquidationPair;
+    }
+
+    /**
+     * @notice Total number of LiquidationPair deployed by this factory.
+     * @return Number of LiquidationPair deployed by this factory.
+     */
+    function totalPairs() external view returns (uint256) {
+        return allPairs.length;
     }
 }
