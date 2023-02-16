@@ -12,7 +12,7 @@ import "../../src/libraries/LiquidatorLib.sol";
 contract MockLiquidatorLib {
     function computeExactAmountIn(uint128 _reserveA, uint128 _reserveB, uint256 _amountInB, uint256 _amountOutB)
         public
-        view
+        pure
         returns (uint256)
     {
         uint256 amountIn = LiquidatorLib.computeExactAmountIn(_reserveA, _reserveB, _amountInB, _amountOutB);
@@ -21,7 +21,7 @@ contract MockLiquidatorLib {
 
     function computeExactAmountOut(uint128 _reserveA, uint128 _reserveB, uint256 _amountInB, uint256 _amountInA)
         public
-        view
+        pure
         returns (uint256)
     {
         uint256 amountOut = LiquidatorLib.computeExactAmountOut(_reserveA, _reserveB, _amountInB, _amountInA);
@@ -30,7 +30,7 @@ contract MockLiquidatorLib {
 
     function virtualBuyback(uint128 _reserveA, uint128 _reserveB, uint256 _amountInB)
         public
-        view
+        pure
         returns (uint128, uint128)
     {
         (uint128 reserveA, uint128 reserveB) = LiquidatorLib.virtualBuyback(_reserveA, _reserveB, _amountInB);
@@ -44,7 +44,7 @@ contract MockLiquidatorLib {
         uint256 _amountOutB,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction
-    ) public view returns (uint256, uint256) {
+    ) public pure returns (uint256, uint256) {
         (uint256 reserveA, uint256 reserveB) = LiquidatorLib._virtualSwap(
             _reserveA, _reserveB, _amountInB, _amountOutB, _swapMultiplier, _liquidityFraction
         );
@@ -58,7 +58,7 @@ contract MockLiquidatorLib {
         uint256 _amountInA,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction
-    ) public view returns (uint256, uint256, uint256) {
+    ) public pure returns (uint256, uint256, uint256) {
         (uint256 reserveA, uint256 reserveB, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
             _reserveA, _reserveB, _amountInB, _amountInA, _swapMultiplier, _liquidityFraction
         );
@@ -72,7 +72,7 @@ contract MockLiquidatorLib {
         uint256 _amountOutB,
         UFixed32x9 _swapMultiplier,
         UFixed32x9 _liquidityFraction
-    ) public view returns (uint256, uint256, uint256) {
+    ) public pure returns (uint256, uint256, uint256) {
         (uint256 reserveA, uint256 reserveB, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
             _reserveA, _reserveB, _amountInB, _amountOutB, _swapMultiplier, _liquidityFraction
         );
@@ -81,7 +81,7 @@ contract MockLiquidatorLib {
 
     function getAmountOut(uint256 amountIn, uint128 virtualReserveIn, uint128 virtualReserveOut)
         public
-        view
+        pure
         returns (uint256)
     {
         uint256 amountOut = LiquidatorLib.getAmountOut(amountIn, virtualReserveIn, virtualReserveOut);
@@ -90,7 +90,7 @@ contract MockLiquidatorLib {
 
     function getAmountIn(uint256 amountOut, uint128 virtualReserveIn, uint128 virtualReserveOut)
         public
-        view
+        pure
         returns (uint256)
     {
         uint256 amountIn = LiquidatorLib.getAmountIn(amountOut, virtualReserveIn, virtualReserveOut);
