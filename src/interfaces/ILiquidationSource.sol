@@ -5,10 +5,10 @@ pragma solidity 0.8.17;
 interface ILiquidationSource {
     /**
      * @notice Get the available amount of tokens that can be swapped.
-     * @param token Address of the token to get available balance for
+     * @param tokenOut Address of the token to get available balance for
      * @return uint256 Available amount of `token`
      */
-    function availableBalanceOf(address token) external returns (uint256);
+    function availableBalanceOf(address tokenOut) external returns (uint256);
 
     /**
      * @notice Liquidate `amountIn` of `tokenIn` for `amountOut` of `tokenOut` and transfer to `account`.
@@ -29,8 +29,8 @@ interface ILiquidationSource {
 
     /**
      * @notice Get the address that will receive `tokenIn`.
-     * @param token Address of the token to get the target address for
+     * @param tokenIn Address of the token to get the target address for
      * @return address Address of the target
      */
-    function targetOf(address token) external returns(address);
+    function targetOf(address tokenIn) external returns(address);
 }
