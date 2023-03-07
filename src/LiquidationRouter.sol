@@ -30,6 +30,7 @@ contract LiquidationRouter {
     uint256 _amountIn,
     uint256 _amountOutMin
   ) external returns (uint256) {
+    require(_liquidationPairFactory.deployedPairs(_liquidationPair), "LR/LP-not-from-LPF");
     IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
       _account,
       _liquidationPair.target(),
@@ -45,6 +46,7 @@ contract LiquidationRouter {
     uint256 _amountOut,
     uint256 _amountInMax
   ) external returns (uint256) {
+    require(_liquidationPairFactory.deployedPairs(_liquidationPair), "LR/LP-not-from-LPF");
     IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
       _account,
       _liquidationPair.target(),
