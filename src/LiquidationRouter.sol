@@ -11,17 +11,13 @@ contract LiquidationRouter {
   using SafeERC20 for IERC20;
 
   /* ============ Events ============ */
-  event LiquidationRouterCreated(
-    LiquidationPairFactory indexed liquidationPairFactory
-  );
+  event LiquidationRouterCreated(LiquidationPairFactory indexed liquidationPairFactory);
 
   /* ============ Variables ============ */
   LiquidationPairFactory internal immutable _liquidationPairFactory;
 
   /* ============ Constructor ============ */
-  constructor(
-    LiquidationPairFactory liquidationPairFactory_
-  ) {
+  constructor(LiquidationPairFactory liquidationPairFactory_) {
     require(address(liquidationPairFactory_) != address(0), "LR/LPF-not-address-zero");
     _liquidationPairFactory = liquidationPairFactory_;
 
@@ -34,7 +30,11 @@ contract LiquidationRouter {
     uint256 _amountIn,
     uint256 _amountOutMin
   ) external returns (uint256) {
-    IERC20(_liquidationPair.tokenIn()).safeTransferFrom(_account, _liquidationPair.target(), _amountIn);
+    IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
+      _account,
+      _liquidationPair.target(),
+      _amountIn
+    );
 
     return _liquidationPair.swapExactAmountIn(_account, _amountIn, _amountOutMin);
   }

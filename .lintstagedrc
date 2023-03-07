@@ -1,0 +1,4 @@
+{
+  "*.{json,md,sol,yml}": ["npm run format"],
+  "*.sol": ["npm run hint"]
+}
