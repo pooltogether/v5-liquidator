@@ -13,3 +13,4 @@ out/
 .vscode/
 .gas-snapshot*
 .history
+node_modules
