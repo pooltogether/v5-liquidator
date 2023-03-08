@@ -24,35 +24,41 @@ contract LiquidationRouter {
     emit LiquidationRouterCreated(liquidationPairFactory_);
   }
 
+  /* ============ Modifiers ============ */
+  modifier onlyTrustedLiquidationPair(LiquidationPair _liquidationPair) {
+    require(_liquidationPairFactory.deployedPairs(_liquidationPair), "LR/LP-not-from-LPF");
+    _;
+  }
+
+  /* ============ External Methods ============ */
+
   function swapExactAmountIn(
     LiquidationPair _liquidationPair,
-    address _account,
+    address _receiver,
     uint256 _amountIn,
     uint256 _amountOutMin
-  ) external returns (uint256) {
-    require(_liquidationPairFactory.deployedPairs(_liquidationPair), "LR/LP-not-from-LPF");
+  ) external onlyTrustedLiquidationPair(_liquidationPair) returns (uint256) {
     IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
-      _account,
+      msg.sender,
       _liquidationPair.target(),
       _amountIn
     );
 
-    return _liquidationPair.swapExactAmountIn(_account, _amountIn, _amountOutMin);
+    return _liquidationPair.swapExactAmountIn(_receiver, _amountIn, _amountOutMin);
   }
 
   function swapExactAmountOut(
     LiquidationPair _liquidationPair,
-    address _account,
+    address _receiver,
     uint256 _amountOut,
     uint256 _amountInMax
-  ) external returns (uint256) {
-    require(_liquidationPairFactory.deployedPairs(_liquidationPair), "LR/LP-not-from-LPF");
+  ) external onlyTrustedLiquidationPair(_liquidationPair) returns (uint256) {
     IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
-      _account,
+      msg.sender,
       _liquidationPair.target(),
       _liquidationPair.computeExactAmountIn(_amountOut)
     );
 
-    return _liquidationPair.swapExactAmountOut(_account, _amountOut, _amountInMax);
+    return _liquidationPair.swapExactAmountOut(_receiver, _amountOut, _amountInMax);
   }
 }
