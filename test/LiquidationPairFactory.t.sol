@@ -84,4 +84,18 @@ contract LiquidationPairFactoryTest is BaseSetup {
       100
     );
   }
+
+  function testTotalPairs() public {
+    assertEq(factory.totalPairs(), 0);
+    factory.createPair(
+      source,
+      tokenIn,
+      tokenOut,
+      UFixed32x9.wrap(300000),
+      UFixed32x9.wrap(20000),
+      100,
+      100
+    );
+    assertEq(factory.totalPairs(), 1);
+  }
 }

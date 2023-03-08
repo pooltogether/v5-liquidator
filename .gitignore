@@ -14,3 +14,7 @@ out/
 .gas-snapshot*
 .history
 node_modules
+
+# Coverage
+coverage/
+lcov.info
