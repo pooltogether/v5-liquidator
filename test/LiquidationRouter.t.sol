@@ -16,7 +16,6 @@ import { UFixed32x9 } from "src/libraries/FixedMathLib.sol";
 
 import { BaseSetup } from "./utils/BaseSetup.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockLiquidationPairYieldSource } from "./mocks/MockLiquidationPairYieldSource.sol";
 
 contract LiquidationRouterTest is BaseSetup {
   using SafeERC20 for IERC20;
@@ -34,9 +33,10 @@ contract LiquidationRouterTest is BaseSetup {
   UFixed32x9 public defaultLiquidityFraction;
   uint128 public defaultVirtualReserveIn;
   uint128 public defaultVirtualReserveOut;
+  uint256 public defaultMinK;
 
   LiquidationPairFactory public factory;
-  MockLiquidationPairYieldSource public liquidationPairYieldSource;
+  address public source;
   LiquidationRouter public liquidationRouter;
 
   address public tokenIn;
@@ -53,11 +53,12 @@ contract LiquidationRouterTest is BaseSetup {
     defaultLiquidityFraction = UFixed32x9.wrap(0.02e9);
     defaultVirtualReserveIn = 100e18;
     defaultVirtualReserveOut = 100e18;
+    defaultMinK = 1e8;
 
     tokenIn = address(new MockERC20("tokenIn", "IN", 18));
     tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
 
-    liquidationPairYieldSource = new MockLiquidationPairYieldSource(defaultTarget);
+    source = utils.generateAddress("source");
 
     factory = new LiquidationPairFactory();
     liquidationRouter = new LiquidationRouter(factory);
@@ -76,13 +77,14 @@ contract LiquidationRouterTest is BaseSetup {
 
   function testSwapExactAmountIn_HappyPath() public {
     LiquidationPair liquidationPair = new LiquidationPair(
-      liquidationPairYieldSource,
+      ILiquidationSource(source),
       address(tokenIn),
       address(tokenOut),
       defaultSwapMultiplier,
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
-      defaultVirtualReserveOut
+      defaultVirtualReserveOut,
+      defaultMinK
     );
 
     mockSwapIn(
@@ -105,13 +107,14 @@ contract LiquidationRouterTest is BaseSetup {
 
   function testSwapExactAmountOut_HappyPath() public {
     LiquidationPair liquidationPair = new LiquidationPair(
-      liquidationPairYieldSource,
+      ILiquidationSource(source),
       address(tokenIn),
       address(tokenOut),
       defaultSwapMultiplier,
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
-      defaultVirtualReserveOut
+      defaultVirtualReserveOut,
+      defaultMinK
     );
 
     mockSwapOut(

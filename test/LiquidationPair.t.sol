@@ -1709,7 +1709,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 }
 
 // Assume tokenOut is WBTC, tokenIn is USDC
-// Initial reserve ratio is 1:25000e10 (1e8:1e18)
+// Initial reserve ratio is ~ 1:25000
 contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   /* ============ Variables ============ */
 
@@ -1725,11 +1725,11 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
 
   function setUp() public virtual override {
     super.setUp();
-    defaultSwapMultiplier = UFixed32x9.wrap(0.1e9);
-    defaultLiquidityFraction = UFixed32x9.wrap(0.01e9);
-    defaultVirtualReserveIn = 25000e18;
-    defaultVirtualReserveOut = 1e8;
-    defaultMinK = 25000e20;
+    defaultSwapMultiplier = UFixed32x9.wrap(0.3e9);
+    defaultLiquidityFraction = UFixed32x9.wrap(0.02e9);
+    defaultVirtualReserveIn = 1198574999999999899456; // 1e18
+    defaultVirtualReserveOut = 4794300; //1e8
+    defaultMinK = 5746328122499999517961900800;
 
     defaultLiquidationPair = new LiquidationPair(
       ILiquidationSource(source),
@@ -1752,32 +1752,55 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountIn ============ */
 
   function testComputeExactAmountIn_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 100e8);
-    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(1e8);
-    assertEq(amountIn, 2475247524752475248);
+    mockAvailableBalanceOf(source, tokenOut, 1e8);
+    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(1e6); // 1% of yield
+    assertEq(amountIn, 528298351814435099);
   }
 
   /* ============ computeExactAmountOut ============ */
 
   function testComputeExactAmountOut_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 100e8);
-    uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(25000e18);
-    assertEq(amountOut, 10000980392);
+    mockAvailableBalanceOf(source, tokenOut, 1e8);
+    uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(25000e16);
+    assertEq(amountOut, 85943642);
+  }
+
+  /* ============ computeExactAmount ============ */
+
+  function testComputeExactAmount_Fuzz(uint256 amountOfYield) public {
+    // Semi-realistic range of yield
+    vm.assume(amountOfYield > 100);
+    vm.assume(amountOfYield < 100000e8);
+    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    uint256 _amountOut = amountOfYield / 100; // 1% of yield
+    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(_amountOut);
+    uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(amountIn);
+    assertEq(_amountOut, amountOut);
   }
 
   /* ============ swapExactAmountIn ============ */
 
-  // function testSwapExactAmountIn_AllYieldOut(uint112 amountOfYield) public {
-  //   mockAvailableBalanceOf(source, tokenOut, amountOfYield);
-  //   uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOfYield);
-  // }
+  function testSwapExactAmountIn_AllYieldOut(uint112 amountOfYield) public {
+    vm.assume(amountOfYield > 0);
+    vm.assume(amountOfYield < 100000e8);
+    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOfYield);
+    mockLiquidateGivenAmountIn(defaultLiquidationPair, alice, amountIn, true);
+    vm.prank(alice);
+    defaultLiquidationPair.swapExactAmountIn(alice, amountIn, 0);
+  }
 
   /* ============ swapExactAmountOut ============ */
 
-  // function testSwapExactAmountOut_AllYieldOut(uint112 amountOfYield) public {
-  //   mockAvailableBalanceOf(source, tokenOut, amountOfYield);
-  //   uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(amountOfYield);
-  // }
+  function testSwapExactAmountOut_AllYieldOut(uint112 amountOfYield) public {
+    vm.assume(amountOfYield > 0);
+    vm.assume(amountOfYield < 100000e8);
+    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    uint256 amountOut = amountOfYield;
+    mockLiquidateGivenAmountOut(defaultLiquidationPair, alice, amountOut, true);
+    vm.prank(alice);
+    defaultLiquidationPair.swapExactAmountOut(alice, amountOut, type(uint112).max);
+  }
 
   /* ============ swapMultiplier ============ */
 
