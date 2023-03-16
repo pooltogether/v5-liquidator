@@ -8,7 +8,7 @@ import "../../src/interfaces/ILiquidationSource.sol";
 
 import "./MockERC20.sol";
 
-contract MockLiquidationPairYieldSource is ILiquidationSource {
+contract MockLiquidationSource is ILiquidationSource {
   address internal _target;
 
   constructor(address target_) {

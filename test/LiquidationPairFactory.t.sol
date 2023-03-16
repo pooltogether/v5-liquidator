@@ -9,13 +9,13 @@ import { LiquidationPair } from "../src/LiquidationPair.sol";
 import { ILiquidationSource } from "../src/interfaces/ILiquidationSource.sol";
 import { BaseSetup } from "./utils/BaseSetup.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockLiquidationPairYieldSource } from "./mocks/MockLiquidationPairYieldSource.sol";
+import { MockLiquidationSource } from "./mocks/MockLiquidationSource.sol";
 
 contract LiquidationPairFactoryTest is BaseSetup {
   LiquidationPairFactory public factory;
   address public tokenIn;
   address public tokenOut;
-  MockLiquidationPairYieldSource public source;
+  MockLiquidationSource public source;
   address public target = 0x27fcf06DcFFdDB6Ec5F62D466987e863ec6aE6A0;
 
   event PairCreated(
@@ -26,7 +26,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
     UFixed32x9 swapMultiplier,
     UFixed32x9 liquidityFraction,
     uint128 virtualReserveIn,
-    uint128 virtualReserveOut
+    uint128 virtualReserveOut,
+    uint256 minK
   );
 
   function setUp() public virtual override {
@@ -35,7 +36,7 @@ contract LiquidationPairFactoryTest is BaseSetup {
     factory = new LiquidationPairFactory();
     tokenIn = address(new MockERC20("tokenIn", "IN", 18));
     tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
-    source = new MockLiquidationPairYieldSource(target);
+    source = new MockLiquidationSource(target);
   }
 
   function testCreatePair() public {
@@ -48,7 +49,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x9.wrap(300000),
       UFixed32x9.wrap(20000),
       100,
-      100
+      100,
+      200
     );
 
     LiquidationPair lp = factory.createPair(
@@ -58,7 +60,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x9.wrap(300000),
       UFixed32x9.wrap(20000),
       100,
-      100
+      100,
+      200
     );
 
     assertEq(address(lp.source()), address(source));
@@ -81,7 +84,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x9.wrap(300000),
       UFixed32x9.wrap(0),
       100,
-      100
+      100,
+      200
     );
   }
 
@@ -94,7 +98,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x9.wrap(300000),
       UFixed32x9.wrap(20000),
       100,
-      100
+      100,
+      200
     );
     assertEq(factory.totalPairs(), 1);
   }
