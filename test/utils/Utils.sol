@@ -6,6 +6,11 @@ import { Test } from "forge-std/Test.sol";
 contract Utils is Test {
   bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
 
+  function generateAddress(string memory seed) external returns (address user) {
+    user = vm.addr(uint256(keccak256(abi.encodePacked(seed))));
+    vm.label(user, seed);
+  }
+
   function getNextUserAddress() external returns (address payable) {
     address payable user = payable(address(uint160(uint256(nextUser))));
     nextUser = keccak256(abi.encodePacked(nextUser));

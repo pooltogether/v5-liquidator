@@ -14,7 +14,8 @@ contract LiquidationPairFactory {
     UFixed32x9 swapMultiplier,
     UFixed32x9 liquidityFraction,
     uint128 virtualReserveIn,
-    uint128 virtualReserveOut
+    uint128 virtualReserveOut,
+    uint256 minK
   );
 
   /* ============ Variables ============ */
@@ -36,7 +37,8 @@ contract LiquidationPairFactory {
     UFixed32x9 _swapMultiplier,
     UFixed32x9 _liquidityFraction,
     uint128 _virtualReserveIn,
-    uint128 _virtualReserveOut
+    uint128 _virtualReserveOut,
+    uint256 _mink
   ) external returns (LiquidationPair) {
     LiquidationPair _liquidationPair = new LiquidationPair(
       _source,
@@ -45,7 +47,8 @@ contract LiquidationPairFactory {
       _swapMultiplier,
       _liquidityFraction,
       _virtualReserveIn,
-      _virtualReserveOut
+      _virtualReserveOut,
+      _mink
     );
 
     allPairs.push(_liquidationPair);
@@ -59,7 +62,8 @@ contract LiquidationPairFactory {
       _swapMultiplier,
       _liquidityFraction,
       _virtualReserveIn,
-      _virtualReserveOut
+      _virtualReserveOut,
+      _mink
     );
 
     return _liquidationPair;

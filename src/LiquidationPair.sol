@@ -4,9 +4,11 @@ pragma solidity 0.8.17;
 import "./libraries/LiquidatorLib.sol";
 import "./libraries/FixedMathLib.sol";
 import "./interfaces/ILiquidationSource.sol";
+import { Math } from "openzeppelin/utils/math/Math.sol";
 
 contract LiquidationPair {
   /* ============ Variables ============ */
+
   ILiquidationSource public immutable source; // Where to get tokenIn from
   address public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
   address public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
@@ -15,8 +17,10 @@ contract LiquidationPair {
 
   uint128 public virtualReserveIn;
   uint128 public virtualReserveOut;
+  uint256 public immutable minK;
 
   /* ============ Events ============ */
+
   event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
 
   /* ============ Constructor ============ */
@@ -28,7 +32,8 @@ contract LiquidationPair {
     UFixed32x9 _swapMultiplier,
     UFixed32x9 _liquidityFraction,
     uint128 _virtualReserveIn,
-    uint128 _virtualReserveOut
+    uint128 _virtualReserveOut,
+    uint256 _minK
   ) {
     require(
       UFixed32x9.unwrap(_liquidityFraction) > 0,
@@ -42,6 +47,17 @@ contract LiquidationPair {
       UFixed32x9.unwrap(_liquidityFraction) <= 1e9,
       "LiquidationPair/liquidity-fraction-less-than-one"
     );
+    require(
+      uint256(_virtualReserveIn) * _virtualReserveOut >= _minK,
+      "LiquidationPair/virtual-reserves-greater-than-min-k"
+    );
+    require(_minK > 0, "LiquidationPair/min-k-greater-than-zero");
+    require(_virtualReserveIn <= type(uint112).max, "LiquidationPair/virtual-reserve-in-too-large");
+    require(
+      _virtualReserveOut <= type(uint112).max,
+      "LiquidationPair/virtual-reserve-out-too-large"
+    );
+
     source = _source;
     tokenIn = _tokenIn;
     tokenOut = _tokenOut;
@@ -49,11 +65,21 @@ contract LiquidationPair {
     liquidityFraction = _liquidityFraction;
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;
+    minK = _minK;
   }
 
   /* ============ External Function ============ */
 
+  function maxAmountIn() external returns (uint256) {
+    // take amount in, apply the multiplier and liquidity fraction calculations, ensure the final virtual amounts don't result in overflow
+  }
+
   function maxAmountOut() external returns (uint256) {
+    // If available amount outsizes reserves, need to cap it to the reserves
+
+    // TODO: This is what was in the linear ticket, I don't think this is accurate though..
+    // return Math.min(_availableReserveOut(), virtualReserveOut);
+
     return _availableReserveOut();
   }
 
@@ -63,7 +89,7 @@ contract LiquidationPair {
 
   function nextLiquidationState() external returns (uint128, uint128) {
     return
-      LiquidatorLib.virtualBuyback(virtualReserveIn, virtualReserveOut, _availableReserveOut());
+      LiquidatorLib._virtualBuyback(virtualReserveIn, virtualReserveOut, _availableReserveOut());
   }
 
   function computeExactAmountIn(uint256 _amountOut) external returns (uint256) {
@@ -99,7 +125,8 @@ contract LiquidationPair {
         availableBalance,
         _amountIn,
         swapMultiplier,
-        liquidityFraction
+        liquidityFraction,
+        minK
       );
 
     virtualReserveIn = _virtualReserveIn;
@@ -126,7 +153,8 @@ contract LiquidationPair {
         availableBalance,
         _amountOut,
         swapMultiplier,
-        liquidityFraction
+        liquidityFraction,
+        minK
       );
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;
