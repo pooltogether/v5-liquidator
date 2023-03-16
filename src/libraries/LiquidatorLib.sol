@@ -18,7 +18,7 @@ library LiquidatorLib {
     uint256 amountIn1,
     uint128 reserve1,
     uint128 reserve0
-  ) internal view returns (uint256 amountOut0) {
+  ) internal pure returns (uint256 amountOut0) {
     require(reserve0 > 0 && reserve1 > 0, "LiquidatorLib/insufficient-reserve-liquidity-a");
     uint256 numerator = amountIn1 * reserve0;
     uint256 denominator = amountIn1 + reserve1;
@@ -31,7 +31,7 @@ library LiquidatorLib {
     uint256 amountOut0,
     uint128 reserve1,
     uint128 reserve0
-  ) internal view returns (uint256 amountIn1) {
+  ) internal pure returns (uint256 amountIn1) {
     require(amountOut0 < reserve0, "LiquidatorLib/insufficient-reserve-liquidity-c");
     require(reserve0 > 0 && reserve1 > 0, "LiquidatorLib/insufficient-reserve-liquidity-d");
     uint256 numerator = amountOut0 * reserve1;
@@ -58,7 +58,7 @@ library LiquidatorLib {
     UFixed32x9 _swapMultiplier,
     UFixed32x9 _liquidityFraction,
     uint256 _minK
-  ) internal view returns (uint128 reserve0, uint128 reserve1) {
+  ) internal pure returns (uint128 reserve0, uint128 reserve1) {
     uint256 virtualAmountOut1 = FixedMathLib.mul(_amountOut1, _swapMultiplier);
 
     uint256 virtualAmountIn0 = 0;
@@ -95,25 +95,14 @@ library LiquidatorLib {
     uint256 _amountIn1,
     UFixed32x9 _liquidityFraction,
     uint256 _minK
-  ) internal view returns (uint128 reserve0, uint128 reserve1) {
-    // --- New ---
-    // NOTE: testApplyLiquidityFraction_HappyPath failing
-    // Reserves should be 1000, 1000 but instead min K check is being triggered.
-    // uint256 scalar = 1e28; // Before changes amount to maximize precision
-    // uint256 multiplier = (FixedMathLib.mul(_amountIn1 * scalar, _liquidityFraction)) / reserve1;
-    // uint128 reserve1_1 = uint128(
-    //   uint128((uint256(reserve1) * multiplier) / scalar)
-    // );
-    // uint128 reserve0_1 = uint128((uint256(reserve0) * multiplier) / scalar);
-
-    // --- Original ---
-    // NOTE: 1e10 or higher causes overflow when yield is a high number (max uint112)
-    // Ideally we had higher precision.
-    uint256 scalar = 1e9;
-    uint256 RF = (_amountIn1 * scalar) / _reserve1;
-    uint256 M = FixedMathLib.div(RF, _liquidityFraction);
-    uint128 reserve0_1 = uint128((_reserve0 * M) / scalar);
-    uint128 reserve1_1 = uint128((_reserve1 * M) / scalar);
+  ) internal pure returns (uint128 reserve0, uint128 reserve1) {
+    uint128 reserve0_1 = uint128(
+      (uint256(_reserve0) * _amountIn1 * 1e9) /
+        (uint256(_reserve1) * UFixed32x9.unwrap(_liquidityFraction))
+    );
+    // NOTE: Unsafe Cast!!!!!!
+    // Need 32 bits of space to handle the potential multiple of 1e9.
+    uint128 reserve1_1 = uint128(FixedMathLib.div(_amountIn1, _liquidityFraction));
 
     if (uint256(reserve1_1) * reserve0_1 > _minK) {
       reserve0 = reserve0_1;
@@ -129,7 +118,7 @@ library LiquidatorLib {
     uint128 _reserve1,
     uint256 _amountIn1,
     uint256 _amountOut1
-  ) internal view returns (uint256) {
+  ) internal pure returns (uint256) {
     require(_amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-a");
     (uint128 reserve0, uint128 reserve1) = _virtualBuyback(_reserve0, _reserve1, _amountIn1);
     return getAmountIn(_amountOut1, reserve0, reserve1);
@@ -140,7 +129,7 @@ library LiquidatorLib {
     uint128 _reserve1,
     uint256 _amountIn1,
     uint256 _amountIn0
-  ) internal view returns (uint256) {
+  ) internal pure returns (uint256) {
     (uint128 reserve0, uint128 reserve1) = _virtualBuyback(_reserve0, _reserve1, _amountIn1);
     uint256 amountOut1 = getAmountOut(_amountIn0, reserve0, reserve1);
     require(amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-b");
@@ -155,7 +144,7 @@ library LiquidatorLib {
     UFixed32x9 _swapMultiplier,
     UFixed32x9 _liquidityFraction,
     uint256 _minK
-  ) internal view returns (uint128 reserve0, uint128 reserve1, uint256 amountOut1) {
+  ) internal pure returns (uint128 reserve0, uint128 reserve1, uint256 amountOut1) {
     (reserve0, reserve1) = _virtualBuyback(_reserve0, _reserve1, _amountIn1);
 
     // do swap
@@ -183,7 +172,7 @@ library LiquidatorLib {
     UFixed32x9 _swapMultiplier,
     UFixed32x9 _liquidityFraction,
     uint256 _minK
-  ) internal view returns (uint128 reserve0, uint128 reserve1, uint256 amountIn0) {
+  ) internal pure returns (uint128 reserve0, uint128 reserve1, uint256 amountIn0) {
     require(_amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-d");
     (reserve0, reserve1) = _virtualBuyback(_reserve0, _reserve1, _amountIn1);
 

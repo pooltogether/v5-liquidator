@@ -40,6 +40,17 @@ contract LiquidationPair {
       "LiquidationPair/liquidity-fraction-greater-than-zero"
     );
     require(
+      UFixed32x9.unwrap(_liquidityFraction) > 0,
+      "LiquidationPair/liquidity-fraction-greater-than-zero"
+    );
+    // NOTE: Liquidity Fraction is applied to a uint112, we need to ensure it's  large enough such that the result doesn't overflow a uint128.
+    // Solutions:
+    // 1. Require liquidityFraction > 0.0001
+    // require(
+    //   UFixed32x9.unwrap(_liquidityFraction) > 100000,
+    //   "LiquidationPair/liquidity-fraction-greater-than-uint16"
+    // );
+    require(
       UFixed32x9.unwrap(_swapMultiplier) <= 1e9,
       "LiquidationPair/swap-multiplier-less-than-one"
     );

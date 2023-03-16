@@ -39,7 +39,7 @@ contract LiquidationRouter {
     uint256 _amountOutMin
   ) external onlyTrustedLiquidationPair(_liquidationPair) returns (uint256) {
     IERC20(_liquidationPair.tokenIn()).safeTransferFrom(
-      _account,
+      msg.sender,
       _liquidationPair.target(),
       _amountIn
     );
