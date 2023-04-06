@@ -346,14 +346,14 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     }
   }
 
-  function testApplyLiquidityFraction_MaxM() public view {
+  function testApplyLiquidityFraction_MaxM() public {
     uint128 _reserve0 = type(uint112).max;
     uint128 _reserve1 = 1;
     uint256 _amountIn1 = type(uint112).max;
     UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1);
     uint256 _minK = 1;
 
-    mockLiquidatorLib.applyLiquidityFraction(
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
       _reserve0,
       _reserve1,
       _amountIn1,
