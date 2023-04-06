@@ -13,7 +13,6 @@ import "./FixedMathLib.sol";
  * @notice
  */
 library LiquidatorLib {
-  // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
   function getAmountOut(
     uint256 amountIn1,
     uint128 reserve1,
@@ -26,7 +25,6 @@ library LiquidatorLib {
     return amountOut0;
   }
 
-  // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
   function getAmountIn(
     uint256 amountOut0,
     uint128 reserve1,
@@ -43,11 +41,10 @@ library LiquidatorLib {
     uint128 _reserve0,
     uint128 _reserve1,
     uint256 _amountIn1
-  ) internal view returns (uint128 reserve0, uint128 reserve1) {
-    // swap back yield
+  ) internal pure returns (uint128 reserve0, uint128 reserve1) {
     uint256 amountOut0 = getAmountOut(_amountIn1, _reserve1, _reserve0);
-    reserve0 = _reserve0 - uint128(amountOut0); // Note: Safe: amountOut0 < reserve0
-    reserve1 = _reserve1 + uint128(_amountIn1); // Note: Potential overflow
+    reserve0 = _reserve0 - uint128(amountOut0);
+    reserve1 = _reserve1 + uint128(_amountIn1);
   }
 
   function _virtualSwap(
@@ -55,8 +52,8 @@ library LiquidatorLib {
     uint128 _reserve1,
     uint256 _amountIn1,
     uint256 _amountOut1,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) internal pure returns (uint128 reserve0, uint128 reserve1) {
     uint256 virtualAmountOut1 = FixedMathLib.mul(_amountOut1, _swapMultiplier);
@@ -75,9 +72,7 @@ library LiquidatorLib {
       virtualAmountOut1 = 0;
     }
 
-    // Note: Potential overflow
     reserve0 = _reserve0 + uint128(virtualAmountIn0);
-    // Note: Potential underflow after sub
     reserve1 = _reserve1 - uint128(virtualAmountOut1);
 
     (reserve0, reserve1) = _applyLiquidityFraction(
@@ -93,15 +88,13 @@ library LiquidatorLib {
     uint128 _reserve0,
     uint128 _reserve1,
     uint256 _amountIn1,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) internal pure returns (uint128 reserve0, uint128 reserve1) {
     uint128 reserve0_1 = uint128(
-      (uint256(_reserve0) * _amountIn1 * 1e9) /
-        (uint256(_reserve1) * UFixed32x9.unwrap(_liquidityFraction))
+      (uint256(_reserve0) * _amountIn1 * FixedMathLib.multiplier) /
+        (uint256(_reserve1) * UFixed32x4.unwrap(_liquidityFraction))
     );
-    // NOTE: Unsafe Cast!!!!!!
-    // Need 32 bits of space to handle the potential multiple of 1e9.
     uint128 reserve1_1 = uint128(FixedMathLib.div(_amountIn1, _liquidityFraction));
 
     if (uint256(reserve1_1) * reserve0_1 > _minK) {
@@ -141,17 +134,16 @@ library LiquidatorLib {
     uint128 _reserve1,
     uint256 _amountIn1,
     uint256 _amountIn0,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) internal pure returns (uint128 reserve0, uint128 reserve1, uint256 amountOut1) {
     (reserve0, reserve1) = _virtualBuyback(_reserve0, _reserve1, _amountIn1);
 
-    // do swap
     amountOut1 = getAmountOut(_amountIn0, reserve0, reserve1);
     require(amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-c");
-    reserve0 = reserve0 + uint128(_amountIn0); // Note: Potential overflow
-    reserve1 = reserve1 - uint128(amountOut1); // Note: Safe: amountOut1 < reserve1
+    reserve0 = reserve0 + uint128(_amountIn0);
+    reserve1 = reserve1 - uint128(amountOut1);
 
     (reserve0, reserve1) = _virtualSwap(
       reserve0,
@@ -169,8 +161,8 @@ library LiquidatorLib {
     uint128 _reserve1,
     uint256 _amountIn1,
     uint256 _amountOut1,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) internal pure returns (uint128 reserve0, uint128 reserve1, uint256 amountIn0) {
     require(_amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-d");
@@ -178,8 +170,8 @@ library LiquidatorLib {
 
     // do swap
     amountIn0 = getAmountIn(_amountOut1, reserve0, reserve1);
-    reserve0 = reserve0 + uint128(amountIn0); // Note: Potential overflow
-    reserve1 = reserve1 - uint128(_amountOut1); // Note: Safe: _amountOut1 < reserve1
+    reserve0 = reserve0 + uint128(amountIn0);
+    reserve1 = reserve1 - uint128(_amountOut1);
 
     (reserve0, reserve1) = _virtualSwap(
       reserve0,

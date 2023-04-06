@@ -17,7 +17,7 @@ contract Utils is Test {
     return user;
   }
 
-  // create users with 100 ETH balance each
+  // Create users with 100 ETH balance each
   function createUsers(uint256 userNum) external returns (address payable[] memory) {
     address payable[] memory users = new address payable[](userNum);
     for (uint256 i = 0; i < userNum; i++) {
@@ -29,7 +29,7 @@ contract Utils is Test {
     return users;
   }
 
-  // move block.number forward by a given number of blocks
+  // Move block.number forward by a given number of blocks
   function mineBlocks(uint256 numBlocks) external {
     uint256 targetBlock = block.number + numBlocks;
     vm.roll(targetBlock);

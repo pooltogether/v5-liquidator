@@ -12,10 +12,9 @@ import { LiquidationRouter } from "src/LiquidationRouter.sol";
 import { ILiquidationSource } from "src/interfaces/ILiquidationSource.sol";
 
 import { LiquidatorLib } from "src/libraries/LiquidatorLib.sol";
-import { UFixed32x9 } from "src/libraries/FixedMathLib.sol";
+import { UFixed32x4 } from "src/libraries/FixedMathLib.sol";
 
 import { BaseSetup } from "./utils/BaseSetup.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
 
 contract LiquidationRouterTest is BaseSetup {
   using SafeERC20 for IERC20;
@@ -29,8 +28,8 @@ contract LiquidationRouterTest is BaseSetup {
   address public defaultReceiver;
   address public defaultTarget;
 
-  UFixed32x9 public defaultSwapMultiplier;
-  UFixed32x9 public defaultLiquidityFraction;
+  UFixed32x4 public defaultSwapMultiplier;
+  UFixed32x4 public defaultLiquidityFraction;
   uint128 public defaultVirtualReserveIn;
   uint128 public defaultVirtualReserveOut;
   uint256 public defaultMinK;
@@ -49,14 +48,14 @@ contract LiquidationRouterTest is BaseSetup {
 
     defaultReceiver = bob;
     defaultTarget = carol;
-    defaultSwapMultiplier = UFixed32x9.wrap(0.3e9);
-    defaultLiquidityFraction = UFixed32x9.wrap(0.02e9);
+    defaultSwapMultiplier = UFixed32x4.wrap(0.3e4);
+    defaultLiquidityFraction = UFixed32x4.wrap(0.02e4);
     defaultVirtualReserveIn = 100e18;
     defaultVirtualReserveOut = 100e18;
     defaultMinK = 1e8;
 
-    tokenIn = address(new MockERC20("tokenIn", "IN", 18));
-    tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
+    tokenIn = utils.generateAddress("tokenIn");
+    tokenOut = utils.generateAddress("tokenOut");
 
     source = utils.generateAddress("source");
 

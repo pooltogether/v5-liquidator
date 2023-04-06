@@ -9,11 +9,11 @@ import { Math } from "openzeppelin/utils/math/Math.sol";
 contract LiquidationPair {
   /* ============ Variables ============ */
 
-  ILiquidationSource public immutable source; // Where to get tokenIn from
-  address public immutable tokenIn; // Token being sent into the Liquidator Pair by the user(ex. POOL)
-  address public immutable tokenOut; // Token being sent out of the Liquidation Pair to the user(ex. USDC, WETH, etc.)
-  UFixed32x9 public immutable swapMultiplier; // 9 decimals
-  UFixed32x9 public immutable liquidityFraction; // 9 decimals
+  ILiquidationSource public immutable source;
+  address public immutable tokenIn;
+  address public immutable tokenOut;
+  UFixed32x4 public immutable swapMultiplier;
+  UFixed32x4 public immutable liquidityFraction;
 
   uint128 public virtualReserveIn;
   uint128 public virtualReserveOut;
@@ -29,33 +29,26 @@ contract LiquidationPair {
     ILiquidationSource _source,
     address _tokenIn,
     address _tokenOut,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint128 _virtualReserveIn,
     uint128 _virtualReserveOut,
     uint256 _minK
   ) {
     require(
-      UFixed32x9.unwrap(_liquidityFraction) > 0,
+      UFixed32x4.unwrap(_liquidityFraction) > 0,
       "LiquidationPair/liquidity-fraction-greater-than-zero"
     );
     require(
-      UFixed32x9.unwrap(_liquidityFraction) > 0,
+      UFixed32x4.unwrap(_liquidityFraction) > 0,
       "LiquidationPair/liquidity-fraction-greater-than-zero"
     );
-    // NOTE: Liquidity Fraction is applied to a uint112, we need to ensure it's  large enough such that the result doesn't overflow a uint128.
-    // Solutions:
-    // 1. Require liquidityFraction > 0.0001
-    // require(
-    //   UFixed32x9.unwrap(_liquidityFraction) > 100000,
-    //   "LiquidationPair/liquidity-fraction-greater-than-uint16"
-    // );
     require(
-      UFixed32x9.unwrap(_swapMultiplier) <= 1e9,
+      UFixed32x4.unwrap(_swapMultiplier) <= 1e4,
       "LiquidationPair/swap-multiplier-less-than-one"
     );
     require(
-      UFixed32x9.unwrap(_liquidityFraction) <= 1e9,
+      UFixed32x4.unwrap(_liquidityFraction) <= 1e4,
       "LiquidationPair/liquidity-fraction-less-than-one"
     );
     require(
@@ -82,15 +75,16 @@ contract LiquidationPair {
   /* ============ External Function ============ */
 
   function maxAmountIn() external returns (uint256) {
-    // take amount in, apply the multiplier and liquidity fraction calculations, ensure the final virtual amounts don't result in overflow
+    return
+      LiquidatorLib.computeExactAmountIn(
+        virtualReserveIn,
+        virtualReserveOut,
+        _availableReserveOut(),
+        _availableReserveOut()
+      );
   }
 
   function maxAmountOut() external returns (uint256) {
-    // If available amount outsizes reserves, need to cap it to the reserves
-
-    // TODO: This is what was in the linear ticket, I don't think this is accurate though..
-    // return Math.min(_availableReserveOut(), virtualReserveOut);
-
     return _availableReserveOut();
   }
 
@@ -187,8 +181,6 @@ contract LiquidationPair {
 
   /* ============ Internal Functions ============ */
 
-  // Note: Uniswap has restrictions on _account, but we don't
-  // Note: Uniswap requires _amountOut to be > 0, but we don't
   function _swap(address _account, uint256 _amountOut, uint256 _amountIn) internal {
     source.liquidate(_account, tokenIn, _amountIn, tokenOut, _amountOut);
   }

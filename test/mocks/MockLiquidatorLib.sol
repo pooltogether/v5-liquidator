@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
-import { IERC20 } from "openzeppelin/token/ERC20/IERC20.sol";
 
 import "../../src/libraries/LiquidatorLib.sol";
 
@@ -58,8 +57,8 @@ contract MockLiquidatorLib {
     uint128 _reserveB,
     uint256 _amountInB,
     uint256 _amountOutB,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint128 _minK
   ) public pure returns (uint128, uint128) {
     (uint128 reserveA, uint128 reserveB) = LiquidatorLib._virtualSwap(
@@ -78,7 +77,7 @@ contract MockLiquidatorLib {
     uint128 _reserveA,
     uint128 _reserveB,
     uint256 _amountInB,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _liquidityFraction,
     uint256 _mink
   ) public pure returns (uint256, uint256) {
     (uint128 reserveA, uint128 reserveB) = LiquidatorLib._applyLiquidityFraction(
@@ -96,8 +95,8 @@ contract MockLiquidatorLib {
     uint128 _reserveB,
     uint256 _amountInB,
     uint256 _amountInA,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint128 _minK
   ) public pure returns (uint256, uint256, uint256) {
     (uint256 reserveA, uint256 reserveB, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
@@ -117,8 +116,8 @@ contract MockLiquidatorLib {
     uint128 _reserveB,
     uint256 _amountInB,
     uint256 _amountOutB,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint128 _minK
   ) public pure returns (uint256, uint256, uint256) {
     (uint256 reserveA, uint256 reserveB, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
