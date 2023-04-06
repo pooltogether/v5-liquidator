@@ -3,10 +3,10 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import { UFixed32x9 } from "../src/libraries/FixedMathLib.sol";
+import { UFixed32x4 } from "../src/libraries/FixedMathLib.sol";
 import { BaseSetup } from "./utils/BaseSetup.sol";
 import { MockLiquidatorLib } from "./mocks/MockLiquidatorLib.sol";
-import { UFixed32x9, FixedMathLib } from "../src/libraries/FixedMathLib.sol";
+import { UFixed32x4, FixedMathLib } from "../src/libraries/FixedMathLib.sol";
 
 contract BaseLiquidatorLibTest is BaseSetup {
   /* ============ Variables ============ */
@@ -20,7 +20,7 @@ contract BaseLiquidatorLibTest is BaseSetup {
     mockLiquidatorLib = new MockLiquidatorLib();
   }
 
-  // ------------- Assumptions for restricting fuzz tests -------------
+  // ============ Assumptions for restricting fuzz tests ============
 
   function getAmountOut_Assumptions(
     uint256 amountIn,
@@ -57,14 +57,14 @@ contract BaseLiquidatorLibTest is BaseSetup {
     uint128 _reserve0,
     uint128 _reserve1,
     uint256 _amountIn1,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
-  ) public view returns (uint128, uint128, uint256, UFixed32x9, uint256) {
+  ) public view returns (uint128, uint128, uint256, UFixed32x4, uint256) {
     _reserve0 = uint128(bound(_reserve0, 1, type(uint112).max));
     _reserve1 = uint128(bound(_reserve1, 1, type(uint112).max));
     _amountIn1 = bound(_amountIn1, 0, type(uint112).max);
-    _liquidityFraction = UFixed32x9.wrap(
-      uint32(bound(UFixed32x9.unwrap(_liquidityFraction), 100000, 1e9))
+    _liquidityFraction = UFixed32x4.wrap(
+      uint32(bound(UFixed32x4.unwrap(_liquidityFraction), 1, 1e4))
     );
     _minK = bound(_minK, 100, type(uint128).max);
 
@@ -107,13 +107,11 @@ contract BaseLiquidatorLibTest is BaseSetup {
     uint256 _amountIn1,
     uint256 _amountIn0
   ) public view returns (uint128, uint128, uint256, uint256) {
-    console.log(_reserve0, _reserve1, _amountIn1, _amountIn0);
     (_reserve0, _reserve1, _amountIn1) = virtualBuyback_Assumptions(
       _reserve0,
       _reserve1,
       _amountIn1
     );
-    console.log(_reserve0, _reserve1, _amountIn1, _amountIn0);
     (uint128 reserve0, uint128 reserve1) = mockLiquidatorLib.virtualBuyback(
       _reserve0,
       _reserve1,
@@ -131,7 +129,6 @@ contract BaseLiquidatorLibTest is BaseSetup {
 
     uint256 amountOut1 = mockLiquidatorLib.getAmountOut(_amountIn0, reserve0, reserve1);
     vm.assume(amountOut1 <= _amountIn1);
-    console.log(_reserve0, _reserve1, _amountIn1, _amountIn0);
     return (_reserve0, _reserve1, _amountIn1, _amountIn0);
   }
 }
@@ -273,59 +270,13 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10,
       10,
       10,
-      UFixed32x9.wrap(0.1e9),
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.1e4),
+      UFixed32x4.wrap(0.01e4),
       100
     );
     assertEq(reserveA, 1333);
     assertEq(reserveB, 1000);
   }
-
-  // function testVirtualSwap_Fuzz(
-  //   uint128 _reserve0,
-  //   uint128 _reserve1,
-  //   uint256 _amountIn1,
-  //   uint256 _amountOut1,
-  //   UFixed32x9 _swapMultiplier,
-  //   UFixed32x9 _liquidityFraction
-  // ) public view {
-  //   vm.assume(_amountOut1 <= _amountIn1);
-  //   vm.assume(_amountIn1 < type(uint112).max);
-  //   vm.assume(_amountOut1 < type(uint112).max);
-  //   vm.assume(UFixed32x9.unwrap(_liquidityFraction) > 0);
-  //   vm.assume(UFixed32x9.unwrap(_swapMultiplier) <= 1e9);
-
-  //   uint256 extraVirtualReserveOut1 = FixedMathLib.mul(_amountOut1, _swapMultiplier);
-  //   vm.assume(extraVirtualReserveOut1 < type(uint256).max - _reserve1);
-  //   vm.assume(extraVirtualReserveOut1 > 0);
-  //   getAmountIn_Assumptions(extraVirtualReserveOut1, _reserve0, _reserve1);
-  //   uint256 extraVirtualReserveIn0 = mockLiquidatorLib.getAmountIn(
-  //     extraVirtualReserveOut1,
-  //     _reserve0,
-  //     _reserve1
-  //   );
-  //   vm.assume(_reserve0 + extraVirtualReserveIn0 < type(uint128).max);
-
-  //   uint256 reserve0 = _reserve0 + uint128(extraVirtualReserveIn0); // Note: unsafe cast
-  //   uint256 reserve1 = _reserve1 - uint128(extraVirtualReserveOut1); // Note: unsafe cast
-
-  //   vm.assume((_amountIn1 * 1e9) < type(uint256).max);
-  //   uint256 reserveFraction = (_amountIn1 * 1e9) / reserve1;
-  //   vm.assume((reserveFraction * 1e9) < type(uint256).max);
-  //   uint256 multiplier = FixedMathLib.div(reserveFraction, _liquidityFraction);
-  //   vm.assume(multiplier < type(uint128).max);
-  //   vm.assume((reserve0 * multiplier) < type(uint256).max);
-  //   vm.assume((reserve1 * multiplier) < type(uint256).max);
-
-  //   mockLiquidatorLib.virtualSwap(
-  //     _reserve0,
-  //     _reserve1,
-  //     _amountIn1,
-  //     _amountOut1,
-  //     _swapMultiplier,
-  //     _liquidityFraction
-  //   );
-  // }
 
   /* ============ applyLiquidityFraction ============ */
 
@@ -334,7 +285,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10000,
       10000,
       10,
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.01e4),
       100
     );
     assertEq(reserveA, 1000);
@@ -346,7 +297,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       100,
       100,
       100,
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.01e4),
       1e8
     );
     assertEq(reserveA, 100);
@@ -357,7 +308,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     uint128 _reserve0,
     uint128 _reserve1,
     uint256 _amountIn1,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) public {
     (
@@ -385,6 +336,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     uint256 expectedAmountIn = FixedMathLib.mul(reserveB, _liquidityFraction);
 
     if (_reserve1 != reserveB || _reserve0 != reserveA) {
+      // Liquidity fraction was applied successfully
       assertLe(expectedAmountIn, _amountIn1);
       assertGe(expectedAmountIn + 1, _amountIn1);
     } else {
@@ -398,7 +350,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     uint128 _reserve0 = type(uint112).max;
     uint128 _reserve1 = 1;
     uint256 _amountIn1 = type(uint112).max;
-    UFixed32x9 _liquidityFraction = UFixed32x9.wrap(1);
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1);
     uint256 _minK = 1;
 
     mockLiquidatorLib.applyLiquidityFraction(
@@ -412,9 +364,9 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     assertEq(reserveB, 1000);
   }
 
-  function testApplyLiquidityFraction_MinM(UFixed32x9 _liquidityFraction) public {
-    vm.assume(UFixed32x9.unwrap(_liquidityFraction) > 0);
-    vm.assume(UFixed32x9.unwrap(_liquidityFraction) <= 1e9);
+  function testApplyLiquidityFraction_MinM(UFixed32x4 _liquidityFraction) public {
+    vm.assume(UFixed32x4.unwrap(_liquidityFraction) > 0);
+    vm.assume(UFixed32x4.unwrap(_liquidityFraction) <= 1e4);
 
     uint128 reserve0 = type(uint112).max;
     uint128 reserve1 = type(uint112).max;
@@ -440,8 +392,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10,
       100,
       5,
-      UFixed32x9.wrap(0.1e9),
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.1e4),
+      UFixed32x4.wrap(0.01e4),
       500
     );
     assertEq(reserveA, 12000);
@@ -456,8 +408,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10,
       10,
       10,
-      UFixed32x9.wrap(0.1e9),
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.1e4),
+      UFixed32x4.wrap(0.01e4),
       100
     );
   }
@@ -470,8 +422,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10,
       100,
       91,
-      UFixed32x9.wrap(0.1e9),
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.1e4),
+      UFixed32x4.wrap(0.01e4),
       100
     );
     assertEq(reserveA, 12000);
@@ -486,8 +438,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       10,
       10,
       100,
-      UFixed32x9.wrap(0.1e9),
-      UFixed32x9.wrap(0.01e9),
+      UFixed32x4.wrap(0.1e4),
+      UFixed32x4.wrap(0.01e4),
       1000
     );
   }

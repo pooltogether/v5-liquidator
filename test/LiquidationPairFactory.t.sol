@@ -2,74 +2,86 @@
 pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
+import { ILiquidationSource } from "../src/interfaces/ILiquidationSource.sol";
 
-import { UFixed32x9 } from "../src/libraries/FixedMathLib.sol";
+import { UFixed32x4 } from "../src/libraries/FixedMathLib.sol";
+
 import { LiquidationPairFactory } from "../src/LiquidationPairFactory.sol";
 import { LiquidationPair } from "../src/LiquidationPair.sol";
-import { ILiquidationSource } from "../src/interfaces/ILiquidationSource.sol";
+
 import { BaseSetup } from "./utils/BaseSetup.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockLiquidationSource } from "./mocks/MockLiquidationSource.sol";
 
 contract LiquidationPairFactoryTest is BaseSetup {
+  /* ============ Variables ============ */
   LiquidationPairFactory public factory;
   address public tokenIn;
   address public tokenOut;
-  MockLiquidationSource public source;
-  address public target = 0x27fcf06DcFFdDB6Ec5F62D466987e863ec6aE6A0;
+  address public source;
+  address public target;
+
+  /* ============ Events ============ */
 
   event PairCreated(
     LiquidationPair indexed liquidator,
     ILiquidationSource indexed source,
     address indexed tokenIn,
     address tokenOut,
-    UFixed32x9 swapMultiplier,
-    UFixed32x9 liquidityFraction,
+    UFixed32x4 swapMultiplier,
+    UFixed32x4 liquidityFraction,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut,
     uint256 minK
   );
 
+  /* ============ Set up ============ */
+
   function setUp() public virtual override {
     super.setUp();
     // Contract setup
     factory = new LiquidationPairFactory();
-    tokenIn = address(new MockERC20("tokenIn", "IN", 18));
-    tokenOut = address(new MockERC20("tokenOut", "OUT", 18));
-    source = new MockLiquidationSource(target);
+    tokenIn = utils.generateAddress("tokenIn");
+    tokenOut = utils.generateAddress("tokenOut");
+    source = utils.generateAddress("source");
+    target = utils.generateAddress("target");
   }
+
+  /* ============ External functions ============ */
+
+  /* ============ createPair ============ */
 
   function testCreatePair() public {
     vm.expectEmit(false, true, true, true);
     emit PairCreated(
       LiquidationPair(0x0000000000000000000000000000000000000000),
-      source,
+      ILiquidationSource(source),
       tokenIn,
       tokenOut,
-      UFixed32x9.wrap(300000),
-      UFixed32x9.wrap(20000),
+      UFixed32x4.wrap(.3e4),
+      UFixed32x4.wrap(.02e4),
       100,
       100,
       200
     );
 
     LiquidationPair lp = factory.createPair(
-      source,
+      ILiquidationSource(source),
       tokenIn,
       tokenOut,
-      UFixed32x9.wrap(300000),
-      UFixed32x9.wrap(20000),
+      UFixed32x4.wrap(.3e4),
+      UFixed32x4.wrap(.02e4),
       100,
       100,
       200
     );
 
-    assertEq(address(lp.source()), address(source));
-    assertEq(lp.target(), address(target));
-    assertEq(address(lp.tokenIn()), address(tokenIn));
-    assertEq(address(lp.tokenOut()), address(tokenOut));
-    assertEq(UFixed32x9.unwrap(lp.swapMultiplier()), 300000);
-    assertEq(UFixed32x9.unwrap(lp.liquidityFraction()), 20000);
+    mockTarget(source, target);
+
+    assertEq(address(lp.source()), source);
+    assertEq(lp.target(), target);
+    assertEq(address(lp.tokenIn()), tokenIn);
+    assertEq(address(lp.tokenOut()), tokenOut);
+    assertEq(UFixed32x4.unwrap(lp.swapMultiplier()), .3e4);
+    assertEq(UFixed32x4.unwrap(lp.liquidityFraction()), .02e4);
     assertEq(lp.virtualReserveIn(), 100);
     assertEq(lp.virtualReserveOut(), 100);
   }
@@ -78,29 +90,41 @@ contract LiquidationPairFactoryTest is BaseSetup {
     vm.expectRevert(bytes("LiquidationPair/liquidity-fraction-greater-than-zero"));
 
     factory.createPair(
-      source,
+      ILiquidationSource(source),
       tokenIn,
       tokenOut,
-      UFixed32x9.wrap(300000),
-      UFixed32x9.wrap(0),
+      UFixed32x4.wrap(.3e4),
+      UFixed32x4.wrap(0),
       100,
       100,
       200
     );
   }
 
+  /* ============ totalPairs ============ */
+
   function testTotalPairs() public {
     assertEq(factory.totalPairs(), 0);
     factory.createPair(
-      source,
+      ILiquidationSource(source),
       tokenIn,
       tokenOut,
-      UFixed32x9.wrap(300000),
-      UFixed32x9.wrap(20000),
+      UFixed32x4.wrap(.3e4),
+      UFixed32x4.wrap(.02e4),
       100,
       100,
       200
     );
     assertEq(factory.totalPairs(), 1);
+  }
+
+  /* ============ Mocks ============ */
+
+  function mockTarget(address _source, address _result) internal {
+    vm.mockCall(
+      _source,
+      abi.encodeWithSelector(ILiquidationSource.targetOf.selector),
+      abi.encode(_result)
+    );
   }
 }

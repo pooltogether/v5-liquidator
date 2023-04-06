@@ -11,8 +11,8 @@ contract LiquidationPairFactory {
     ILiquidationSource indexed source,
     address indexed tokenIn,
     address tokenOut,
-    UFixed32x9 swapMultiplier,
-    UFixed32x9 liquidityFraction,
+    UFixed32x4 swapMultiplier,
+    UFixed32x4 liquidityFraction,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut,
     uint256 minK
@@ -34,8 +34,8 @@ contract LiquidationPairFactory {
     ILiquidationSource _source,
     address _tokenIn,
     address _tokenOut,
-    UFixed32x9 _swapMultiplier,
-    UFixed32x9 _liquidityFraction,
+    UFixed32x4 _swapMultiplier,
+    UFixed32x4 _liquidityFraction,
     uint128 _virtualReserveIn,
     uint128 _virtualReserveOut,
     uint256 _mink
