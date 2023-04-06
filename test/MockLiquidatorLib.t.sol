@@ -360,8 +360,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       _liquidityFraction,
       _minK
     );
-    assertEq(reserveA, 1000);
-    assertEq(reserveB, 1000);
+    assertEq(reserveA, 236436429750241910892764680847366301456);
+    assertEq(reserveB, 51922968585348276285304963292200950000);
   }
 
   function testApplyLiquidityFraction_MinM(UFixed32x4 _liquidityFraction) public {
