@@ -2,7 +2,6 @@
 
 pragma solidity 0.8.17;
 
-import "forge-std/console.sol";
 import "openzeppelin/token/ERC20/IERC20.sol";
 
 import "./FixedMathLib.sol";
