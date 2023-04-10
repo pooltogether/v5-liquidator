@@ -278,6 +278,34 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     assertEq(reserveB, 1000);
   }
 
+  function testVirtualSwap_Capped() public {
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.virtualSwap(
+      1e18,
+      1e18,
+      1e18,
+      1e18,
+      UFixed32x4.wrap(1e4),
+      UFixed32x4.wrap(1e4),
+      1e18
+    );
+    assertEq(reserveA, 261990826516342219622069247131882094592);
+    assertEq(reserveB, 1000000000000000000);
+  }
+
+  function testVirtualSwap_AmountOutIsZero() public {
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.virtualSwap(
+      1,
+      1,
+      10,
+      10,
+      UFixed32x4.wrap(1e4),
+      UFixed32x4.wrap(0.01e4),
+      100
+    );
+    assertEq(reserveA, 1000);
+    assertEq(reserveB, 1000);
+  }
+
   /* ============ applyLiquidityFraction ============ */
 
   function testApplyLiquidityFraction_HappyPath() public {
