@@ -90,15 +90,19 @@ library LiquidatorLib {
     UFixed32x4 _liquidityFraction,
     uint256 _minK
   ) internal pure returns (uint128 reserve0, uint128 reserve1) {
-    uint128 reserve0_1 = uint128(
-      (uint256(_reserve0) * _amountIn1 * FixedMathLib.multiplier) /
-        (uint256(_reserve1) * UFixed32x4.unwrap(_liquidityFraction))
-    );
-    uint128 reserve1_1 = uint128(FixedMathLib.div(_amountIn1, _liquidityFraction));
+    uint256 reserve0_1 = (uint256(_reserve0) * _amountIn1 * FixedMathLib.multiplier) /
+      (uint256(_reserve1) * UFixed32x4.unwrap(_liquidityFraction));
+    uint256 reserve1_1 = FixedMathLib.div(_amountIn1, _liquidityFraction);
 
-    if (uint256(reserve1_1) * reserve0_1 > _minK) {
-      reserve0 = reserve0_1;
-      reserve1 = reserve1_1;
+    // Ensure we can fit K into a uint256
+    // Ensure new virtual reserves fit into uint112
+    if (
+      reserve0_1 <= type(uint112).max &&
+      reserve1_1 <= type(uint112).max &&
+      uint256(reserve1_1) * reserve0_1 > _minK
+    ) {
+      reserve0 = uint128(reserve0_1);
+      reserve1 = uint128(reserve1_1);
     } else {
       reserve0 = _reserve0;
       reserve1 = _reserve1;

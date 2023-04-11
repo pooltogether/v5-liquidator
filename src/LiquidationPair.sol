@@ -21,7 +21,13 @@ contract LiquidationPair {
 
   /* ============ Events ============ */
 
-  event Swapped(address indexed account, uint256 amountIn, uint256 amountOut);
+  event Swapped(
+    address indexed account,
+    uint256 amountIn,
+    uint256 amountOut,
+    uint128 virtualReserveIn,
+    uint128 virtualReserveOut
+  );
 
   /* ============ Constructor ============ */
 
@@ -140,7 +146,7 @@ contract LiquidationPair {
     require(amountOut >= _amountOutMin, "LiquidationPair/min-not-guaranteed");
     _swap(_account, amountOut, _amountIn);
 
-    emit Swapped(_account, _amountIn, amountOut);
+    emit Swapped(_account, _amountIn, amountOut, _virtualReserveIn, _virtualReserveOut);
 
     return amountOut;
   }
@@ -166,7 +172,7 @@ contract LiquidationPair {
     require(amountIn <= _amountInMax, "LiquidationPair/max-not-guaranteed");
     _swap(_account, _amountOut, amountIn);
 
-    emit Swapped(_account, amountIn, _amountOut);
+    emit Swapped(_account, amountIn, _amountOut, _virtualReserveIn, _virtualReserveOut);
 
     return amountIn;
   }
