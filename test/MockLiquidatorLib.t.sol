@@ -288,8 +288,8 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       UFixed32x4.wrap(1e4),
       1e18
     );
-    assertEq(reserveA, 261990826516342219622069247131882094592);
-    assertEq(reserveB, 1000000000000000000);
+    assertEq(reserveA, 1000000000000000000000000000000000001);
+    assertEq(reserveB, 1);
   }
 
   function testVirtualSwap_AmountOutIsZero() public {
@@ -309,15 +309,21 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   /* ============ applyLiquidityFraction ============ */
 
   function testApplyLiquidityFraction_HappyPath() public {
+    uint128 _reserve0 = 100e18;
+    uint128 _reserve1 = 100e18;
+    uint256 _amountIn1 = 10e18;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(0.01e4);
+    uint256 _minK = 1e8;
+
     (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
-      10000,
-      10000,
-      10,
-      UFixed32x4.wrap(0.01e4),
-      100
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
     );
-    assertEq(reserveA, 1000);
-    assertEq(reserveB, 1000);
+    assertEq(reserveA, 1e21);
+    assertEq(reserveB, 1e21);
   }
 
   function testApplyLiquidityFraction_InsufficientMinK() public {
@@ -330,6 +336,126 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
     );
     assertEq(reserveA, 100);
     assertEq(reserveB, 100);
+  }
+
+  // Maximizes the reserve0 numerator and sets a minimum denominator such that the resulting reserve0 is larger than the max uint112. This results in a passthrough of the original reserve0.
+  function testApplyLiquidityFraction_MaxReserve0_Overflow() public {
+    uint128 _reserve0 = type(uint112).max;
+    uint128 _reserve1 = 1;
+    uint256 _amountIn1 = type(uint112).max;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1);
+    uint256 _minK = 1;
+
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserveA, type(uint112).max);
+    assertEq(reserveB, 1);
+  }
+
+  // Maximizes the reserve0 numerator and sets a minimum denominator such that the resulting reserve0 doesn't overflow
+  function testApplyLiquidityFraction_MaxNumeratorMaxDenominator() public {
+    // 0 is token in, 1 is token out
+    uint128 _reserve0 = type(uint112).max;
+    uint128 _reserve1 = type(uint112).max;
+    uint256 _amountIn1 = type(uint112).max;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1e4);
+    uint256 _minK = 1;
+
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserveA, type(uint112).max);
+    assertEq(reserveB, type(uint112).max);
+  }
+
+  // Minimizes the initial reserve0 and maximizes the yield, the parameters for computing the final reserve0
+  function testApplyLiquidityFraction_MaxNumerator_MaxAmountIn1MinReserve0() public {
+    // 0 is token in, 1 is token out
+    uint128 _reserve0 = 1;
+    uint128 _reserve1 = 1;
+    uint256 _amountIn1 = type(uint112).max;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1e4);
+    uint256 _minK = 1;
+
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserveA, uint256(type(uint112).max));
+    assertEq(reserveB, uint256(type(uint112).max));
+  }
+
+  // Minimizes the parameters for computing the final reserve0
+  // Resulting K will be too small and initial reserves will be passed through
+  function testApplyLiquidityFraction_MinReserve0() public {
+    // 0 is token in, 1 is token out
+    uint128 _reserve0 = 1;
+    uint128 _reserve1 = type(uint112).max;
+    uint256 _amountIn1 = 0;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1e4);
+    uint256 _minK = 1;
+
+    (uint256 reserve0, uint256 reserve1) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserve0, _reserve0);
+    assertEq(reserve1, _reserve1);
+  }
+
+  // Maximizes the parameters for computing the final reserve1
+  function testApplyLiquidityFraction_MaxReserve1() public {
+    // 0 is token in, 1 is token out
+    uint128 _reserve0 = 1;
+    uint128 _reserve1 = 1;
+    uint256 _amountIn1 = type(uint112).max;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1e4);
+    uint256 _minK = 1;
+
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserveA, uint256(type(uint112).max));
+    assertEq(reserveB, uint256(type(uint112).max));
+  }
+
+  // Minimizes the parameters for computing the final reserve1
+  function testApplyLiquidityFraction_MinReserve1() public {
+    // 0 is token in, 1 is token out
+    uint128 _reserve0 = 1;
+    uint128 _reserve1 = 1;
+    uint256 _amountIn1 = 1;
+    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1e4);
+    uint256 _minK = 1;
+
+    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
+      _reserve0,
+      _reserve1,
+      _amountIn1,
+      _liquidityFraction,
+      _minK
+    );
+    assertEq(reserveA, 1);
+    assertEq(reserveB, 1);
   }
 
   function testApplyLiquidityFraction_Fuzz(
@@ -372,44 +498,6 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
       assertEq(reserveA, _reserve0);
       assertEq(reserveB, _reserve1);
     }
-  }
-
-  function testApplyLiquidityFraction_MaxM() public {
-    uint128 _reserve0 = type(uint112).max;
-    uint128 _reserve1 = 1;
-    uint256 _amountIn1 = type(uint112).max;
-    UFixed32x4 _liquidityFraction = UFixed32x4.wrap(1);
-    uint256 _minK = 1;
-
-    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
-      _reserve0,
-      _reserve1,
-      _amountIn1,
-      _liquidityFraction,
-      _minK
-    );
-    assertEq(reserveA, 236436429750241910892764680847366301456);
-    assertEq(reserveB, 51922968585348276285304963292200950000);
-  }
-
-  function testApplyLiquidityFraction_MinM(UFixed32x4 _liquidityFraction) public {
-    vm.assume(UFixed32x4.unwrap(_liquidityFraction) > 0);
-    vm.assume(UFixed32x4.unwrap(_liquidityFraction) <= 1e4);
-
-    uint128 reserve0 = type(uint112).max;
-    uint128 reserve1 = type(uint112).max;
-    uint256 amountIn1 = 1;
-    uint256 minK = 1;
-
-    (uint256 reserveA, uint256 reserveB) = mockLiquidatorLib.applyLiquidityFraction(
-      reserve0,
-      reserve1,
-      amountIn1,
-      _liquidityFraction,
-      minK
-    );
-
-    assertEq(reserveA, reserveB);
   }
 
   /* ============ swapExactAmountIn ============ */
