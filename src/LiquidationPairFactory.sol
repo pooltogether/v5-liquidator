@@ -4,8 +4,26 @@ pragma solidity 0.8.17;
 
 import "./LiquidationPair.sol";
 
+/**
+ * @title PoolTogether Liquidation Pair Factory
+ * @author PoolTogether Inc. Team
+ * @notice A facotry to deploy LiquidationPair contracts.
+ */
 contract LiquidationPairFactory {
   /* ============ Events ============ */
+
+  /**
+   * @notice Emitted when a LiquidationPair is deployed.
+   * @param liquidator The address of the LiquidationPair.
+   * @param source The address of the ILiquidationSource.
+   * @param tokenIn The address of the tokenIn.
+   * @param tokenOut The address of the tokenOut.
+   * @param swapMultiplier The swap multiplier.
+   * @param liquidityFraction The liquidity fraction.
+   * @param virtualReserveIn The initial virtual reserve in.
+   * @param virtualReserveOut The initial virtual reserve out.
+   * @param minK The minimum K value.
+   */
   event PairCreated(
     LiquidationPair indexed liquidator,
     ILiquidationSource indexed source,
@@ -30,6 +48,18 @@ contract LiquidationPairFactory {
   mapping(LiquidationPair => bool) public deployedPairs;
 
   /* ============ External Functions ============ */
+
+  /**
+   * @notice Deploys a new LiquidationPair contract.
+   * @param _source The source of yield for hte liquidation pair
+   * @param _tokenIn The token to be swapped in.
+   * @param _tokenOut The token to be swapped out.
+   * @param _swapMultiplier The swap multiplier.
+   * @param _liquidityFraction The liquidity fraction to be applied after swapping.
+   * @param _virtualReserveIn The initial virtual reserve of token in.
+   * @param _virtualReserveOut The initial virtual reserve of token out.
+   * @param _mink The minimum K value.
+   */
   function createPair(
     ILiquidationSource _source,
     address _tokenIn,
