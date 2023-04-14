@@ -9,9 +9,29 @@ import "./FixedMathLib.sol";
 /**
  * @title PoolTogether Liquidator Library
  * @author PoolTogether Inc. Team
- * @notice
+ * @notice A library to perform swaps on a UniswapV2-like pair of tokens. Implements logic that
+ *          manipulates the token reserve amounts on swap.
+ * @dev Each swap consists of four steps:
+ *       1. A virtual buyback of the tokens available from the ILiquidationSource. This ensures
+ *          that the value of the tokens available from the ILiquidationSource decays as
+ *          tokens accrue.
+ *      2. The main swap of tokens the user requested.
+ *      3. A virtual swap that is a small multiplier applied to the users swap. This is to
+ *          push the value of the tokens being swapped back up towards the market value.
+ *      4. A scaling of the virtual reserves. This is to ensure that the virtual reserves
+ *          are large enough such that the next swap will have a tailored impact on the virtual
+ *          reserves.
+ * @dev Numbered suffixes are used to identify the underlying token used for the parameter.
+ *      For example, `amountIn1` and `reserve1` are the same token where `amountIn0` is different.
  */
 library LiquidatorLib {
+  /**
+   * @notice Computes the amount of tokens that will be received for a given amount of tokens sent.
+   * @param amountIn1 The amount of token 1 being sent in
+   * @param reserve1 The amount of token 1 in the reserves
+   * @param reserve0 The amount of token 0 in the reserves
+   * @return amountOut0 The amount of token 0 that will be received given the amount in of token 1
+   */
   function getAmountOut(
     uint256 amountIn1,
     uint128 reserve1,
@@ -24,6 +44,14 @@ library LiquidatorLib {
     return amountOut0;
   }
 
+  /**
+   * @notice Computes the amount of tokens required to be sent in to receive a given amount of
+   *          tokens.
+   * @param amountOut0 The amount of token 0 to receive
+   * @param reserve1 The amount of token 1 in the reserves
+   * @param reserve0 The amount of token 0 in the reserves
+   * @return amountIn1 The amount of token 1 needed to receive the given amount out of token 0
+   */
   function getAmountIn(
     uint256 amountOut0,
     uint128 reserve1,
@@ -36,6 +64,15 @@ library LiquidatorLib {
     amountIn1 = (numerator / denominator) + 1;
   }
 
+  /**
+   * @notice Performs a swap of all of the available tokens from the ILiquidationSource which
+   *          impacts the virtual reserves resulting in price decay as tokens accrue.
+   * @param _reserve0 The amount of token 0 in the reserve
+   * @param _reserve1 The amount of token 1 in the reserve
+   * @param _amountIn1 The amount of token 1 to buy back
+   * @return reserve0 The new amount of token 0 in the reserves
+   * @return reserve1 The new amount of token 1 in the reserves
+   */
   function _virtualBuyback(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -46,6 +83,18 @@ library LiquidatorLib {
     reserve1 = _reserve1 + uint128(_amountIn1);
   }
 
+  /**
+   * @notice Amplifies the users swap by a multiplier and then scales reserves to a configured ratio.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 to swap in
+   * @param _amountOut1 The amount of token 1 to swap out
+   * @param _swapMultiplier The multiplier to apply to the swap
+   * @param _liquidityFraction The fraction relative to the amount of token 1 to scale the reserves to
+   * @param _minK The minimum value of K to ensure that the reserves are not scaled too small
+   * @return reserve0 The new amount of token 0 in the reserves
+   * @return reserve1 The new amount of token 1 in the reserves
+   */
   function _virtualSwap(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -83,6 +132,19 @@ library LiquidatorLib {
     );
   }
 
+  /**
+   * @notice Scales the reserves to a configured ratio.
+   * @dev This is to ensure that the virtual reserves are large enough such that the next swap will
+   *      have a tailored impact on the virtual reserves.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 swapped in
+   * @param _liquidityFraction The fraction relative to the amount in of token 1 to scale the
+   *                            reserves to
+   * @param _minK The minimum value of K to validate the scaled reserves against
+   * @return reserve0 The new amount of token 0 in the reserves
+   * @return reserve1 The new amount of token 1 in the reserves
+   */
   function _applyLiquidityFraction(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -109,6 +171,14 @@ library LiquidatorLib {
     }
   }
 
+  /**
+   * @notice Computes the amount of token 1 to swap in to get the provided amount of token 1 out.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 coming in
+   * @param _amountOut1 The amount of token 1 to swap out
+   * @return The amount of token 0 to swap in to receive the given amount out of token 1
+   */
   function computeExactAmountIn(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -120,6 +190,14 @@ library LiquidatorLib {
     return getAmountIn(_amountOut1, reserve0, reserve1);
   }
 
+  /**
+   * @notice Computes the amount of token 1 to swap out to get the procided amount of token 1 in.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 coming in
+   * @param _amountIn0 The amount of token 0 to swap in
+   * @return The amount of token 1 to swap out to receive the given amount in of token 0
+   */
   function computeExactAmountOut(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -132,6 +210,22 @@ library LiquidatorLib {
     return amountOut1;
   }
 
+  /**
+   * @notice Adjusts the provided reserves based on the amount of token 1 coming in and performs
+   *          a swap with the provided amount of token 0 in for token 1 out. Finally, scales the
+   *          reserves using the provided liquidity fraction, token 1 coming in and minimum k.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 coming in
+   * @param _amountIn0 The amount of token 0 to swap in to receive token 1 out
+   * @param _swapMultiplier The multiplier to apply to the swap
+   * @param _liquidityFraction The fraction relative to the amount in of token 1 to scale the
+   *                           reserves to
+   * @param _minK The minimum value of K to validate the scaled reserves against
+   * @return reserve0 The new amount of token 0 in the reserves
+   * @return reserve1 The new amount of token 1 in the reserves
+   * @return amountOut1 The amount of token 1 swapped out
+   */
   function swapExactAmountIn(
     uint128 _reserve0,
     uint128 _reserve1,
@@ -159,6 +253,22 @@ library LiquidatorLib {
     );
   }
 
+  /**
+   * @notice Adjusts the provided reserves based on the amount of token 1 coming in and performs
+   *         a swap with the provided amount of token 1 out for token 0 in. Finally, scales the
+   *        reserves using the provided liquidity fraction, token 1 coming in and minimum k.
+   * @param _reserve0 The amount of token 0 in the reserves
+   * @param _reserve1 The amount of token 1 in the reserves
+   * @param _amountIn1 The amount of token 1 coming in
+   * @param _amountOut1 The amount of token 1 to swap out to receive token 0 in
+   * @param _swapMultiplier The multiplier to apply to the swap
+   * @param _liquidityFraction The fraction relative to the amount in of token 1 to scale the
+   *                          reserves to
+   * @param _minK The minimum value of K to validate the scaled reserves against
+   * @return reserve0 The new amount of token 0 in the reserves
+   * @return reserve1 The new amount of token 1 in the reserves
+   * @return amountIn0 The amount of token 0 swapped in
+   */
   function swapExactAmountOut(
     uint128 _reserve0,
     uint128 _reserve1,
