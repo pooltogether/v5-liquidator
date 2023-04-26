@@ -65,7 +65,7 @@ contract LiquidationPairTestSetup is BaseSetup {
     uint128 _expectedVirtualReserveIn,
     uint128 _expectedVirtualReserveOut
   ) internal {
-    mockAvailableBalanceOf(
+    mockLiquidatableBalanceOf(
       address(_liquidationPair.source()),
       _liquidationPair.tokenOut(),
       _amountOfYield
@@ -140,7 +140,7 @@ contract LiquidationPairTestSetup is BaseSetup {
       _lpArgs.minK
     );
 
-    mockAvailableBalanceOf(_lpArgs.source, _lpArgs.tokenOut, _amountOfYield);
+    mockLiquidatableBalanceOf(_lpArgs.source, _lpArgs.tokenOut, _amountOfYield);
 
     uint256 amountIn = liquidationPair.computeExactAmountIn(_amountOut);
     uint256 amountOutMin = liquidationPair.computeExactAmountOut(amountIn);
@@ -175,7 +175,7 @@ contract LiquidationPairTestSetup is BaseSetup {
     uint128 _expectedVirtualReserveIn,
     uint128 _expectedVirtualReserveOut
   ) internal {
-    mockAvailableBalanceOf(
+    mockLiquidatableBalanceOf(
       address(_liquidationPair.source()),
       _liquidationPair.tokenOut(),
       _amountOfYield
@@ -232,10 +232,10 @@ contract LiquidationPairTestSetup is BaseSetup {
 
   /* ============ Mocks ============ */
 
-  function mockAvailableBalanceOf(address _source, address _tokenOut, uint256 _result) internal {
+  function mockLiquidatableBalanceOf(address _source, address _tokenOut, uint256 _result) internal {
     vm.mockCall(
       _source,
-      abi.encodeWithSelector(ILiquidationSource.availableBalanceOf.selector, _tokenOut),
+      abi.encodeWithSelector(ILiquidationSource.liquidatableBalanceOf.selector, _tokenOut),
       abi.encode(_result)
     );
   }
@@ -430,7 +430,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ maxAmountIn ============ */
 
   function testMaxAmountIn_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 1e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 1e18);
     uint256 amountIn = defaultLiquidationPair.maxAmountIn();
     assertEq(amountIn, 10000000000000001);
   }
@@ -438,7 +438,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ maxAmountOut ============ */
 
   function testMaxAmountOut_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 1e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 1e18);
     uint256 amountOut = defaultLiquidationPair.maxAmountOut();
     assertEq(amountOut, 1e18);
   }
@@ -446,7 +446,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ nextLiquidationState ============ */
 
   function testNextLiquidationState_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 0);
+    mockLiquidatableBalanceOf(source, tokenOut, 0);
 
     (uint256 virtualReserveIn, uint256 virtualReserveOut) = defaultLiquidationPair
       .nextLiquidationState();
@@ -458,17 +458,17 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountIn ============ */
 
   function testComputeExactAmountIn_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 10);
+    mockLiquidatableBalanceOf(source, tokenOut, 10);
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(1);
     assertEq(amountIn, 1);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e8);
     amountIn = defaultLiquidationPair.computeExactAmountIn(5e8);
     assertEq(amountIn, 1);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e18);
     amountIn = defaultLiquidationPair.computeExactAmountIn(5e18);
     assertEq(amountIn, 1);
     vm.clearMockedCalls();
@@ -486,17 +486,17 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultMinK
     );
 
-    mockAvailableBalanceOf(source, tokenOut, 10);
+    mockLiquidatableBalanceOf(source, tokenOut, 10);
     uint256 amountIn = liquidationPair.computeExactAmountIn(5);
     assertEq(amountIn, 5);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e8);
     amountIn = liquidationPair.computeExactAmountIn(5e8);
     assertEq(amountIn, 5e8);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e18);
     amountIn = liquidationPair.computeExactAmountIn(5e18);
     assertEq(amountIn, 4992508740634677667);
     vm.clearMockedCalls();
@@ -505,17 +505,17 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountOut ============ */
 
   function testComputeExactAmountOut_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 10);
+    mockLiquidatableBalanceOf(source, tokenOut, 10);
     uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(1);
     assertEq(amountOut, 1);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e8);
     amountOut = defaultLiquidationPair.computeExactAmountOut(1);
     assertEq(amountOut, 500000050);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e18);
     amountOut = defaultLiquidationPair.computeExactAmountOut(1);
     assertEq(amountOut, 5000000000000000050);
     vm.clearMockedCalls();
@@ -533,17 +533,17 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultMinK
     );
 
-    mockAvailableBalanceOf(source, tokenOut, 10);
+    mockLiquidatableBalanceOf(source, tokenOut, 10);
     uint256 amountOut = liquidationPair.computeExactAmountOut(5);
     assertEq(amountOut, 5);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e8);
     amountOut = liquidationPair.computeExactAmountOut(5e8);
     assertEq(amountOut, 5e8);
     vm.clearMockedCalls();
 
-    mockAvailableBalanceOf(source, tokenOut, 10e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 10e18);
     amountOut = liquidationPair.computeExactAmountOut(5e18);
     assertEq(amountOut, 5007498746877187967);
     vm.clearMockedCalls();
@@ -994,13 +994,13 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint256 wantedAmountOut = 20;
     uint256[] memory exactAmountsIn = new uint256[](3);
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield1);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield1);
     exactAmountsIn[0] = defaultLiquidationPair.computeExactAmountIn(wantedAmountOut);
     vm.clearMockedCalls();
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield2);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield2);
     exactAmountsIn[1] = defaultLiquidationPair.computeExactAmountIn(wantedAmountOut);
     vm.clearMockedCalls();
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield3);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield3);
     exactAmountsIn[2] = defaultLiquidationPair.computeExactAmountIn(wantedAmountOut);
 
     // As yield increases => amount in decreases (lower price)
@@ -1021,7 +1021,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     );
     uint256 amountOfYield = 1;
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     uint256 wantedAmountOut = 1;
     uint256 exactAmountIn = liquidationPair.computeExactAmountIn(wantedAmountOut);
@@ -1047,7 +1047,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   function testCannotSwapExactAmountIn_MinNotGuaranteed() public {
     uint256 amountOfYield = 100;
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     uint256 amountOut = amountOfYield / 10;
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOut);
@@ -1259,7 +1259,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       1
     );
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
     // Maximum realistic amount is 100% of POOL. 20000x less than this cap.
     uint256 amountOut = liquidationPair.computeExactAmountOut(type(uint104).max);
 
@@ -1409,7 +1409,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultMinK
     );
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
     uint256 amountOut = liquidationPair.computeExactAmountOut(1);
 
     swapExactAmountOut(
@@ -1516,13 +1516,13 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint256 wantedAmountIn = 20;
     uint256[] memory exactAmountsOut = new uint256[](3);
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield1);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield1);
     exactAmountsOut[0] = defaultLiquidationPair.computeExactAmountOut(wantedAmountIn);
     vm.clearMockedCalls();
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield2);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield2);
     exactAmountsOut[1] = defaultLiquidationPair.computeExactAmountOut(wantedAmountIn);
     vm.clearMockedCalls();
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield3);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield3);
     exactAmountsOut[2] = defaultLiquidationPair.computeExactAmountOut(wantedAmountIn);
 
     assertLe(exactAmountsOut[0], exactAmountsOut[1]);
@@ -1542,7 +1542,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     );
 
     uint256 amountOfYield = 10;
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     uint256 wantedAmountOut = 1;
     uint256 amountInMax = liquidationPair.computeExactAmountIn(wantedAmountOut);
@@ -1566,7 +1566,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
   function testCannotSwapExactAmountOut_MaxNotGuaranteed() public {
     uint256 amountOfYield = 100;
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     uint256 amountOut = amountOfYield / 10;
 
@@ -1588,7 +1588,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint128 virtualReserveIn = 1000e18;
     uint128 virtualReserveOut = 1000e18;
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     LiquidationPair liquidationPair1 = new LiquidationPair(
       ILiquidationSource(source),
@@ -1650,7 +1650,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint128 virtualReserveIn = 1000e18;
     uint128 virtualReserveOut = 1000e18;
 
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
 
     LiquidationPair liquidationPair1 = new LiquidationPair(
       ILiquidationSource(source),
@@ -1707,7 +1707,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ liquidityFraction ============ */
 
   function testLiquidityFraction_Properties() public {
-    mockAvailableBalanceOf(source, tokenOut, 1000);
+    mockLiquidatableBalanceOf(source, tokenOut, 1000);
 
     vm.startPrank(alice);
 
@@ -1806,7 +1806,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountIn ============ */
 
   function testComputeExactAmountIn_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 1e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 1e8);
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(1e6); // 1% of yield
     assertEq(amountIn, 528298351814435099);
   }
@@ -1814,7 +1814,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountOut ============ */
 
   function testComputeExactAmountOut_HappyPath() public {
-    mockAvailableBalanceOf(source, tokenOut, 1e8);
+    mockLiquidatableBalanceOf(source, tokenOut, 1e8);
     uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(25000e16);
     assertEq(amountOut, 85943642);
   }
@@ -1824,7 +1824,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   function testComputeExactAmount_Fuzz(uint256 amountOfYield) public {
     // Semi-realistic range of yield
     amountOfYield = bound(amountOfYield, 101, 100000e8);
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
     uint256 _amountOut = amountOfYield / 100; // 1% of yield
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(_amountOut);
     uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(amountIn);
@@ -1835,7 +1835,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   function testSwapExactAmountIn_AllYieldOut(uint112 amountOfYield) public {
     // Semi-realistic range of yield
     amountOfYield = uint112(bound(amountOfYield, 1, 1e13));
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOfYield);
     mockLiquidateGivenAmountIn(defaultLiquidationPair, alice, amountIn, true);
     vm.prank(alice);
@@ -1846,7 +1846,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
 
   function testSwapExactAmountOut_AllYieldOut(uint112 amountOfYield) public {
     amountOfYield = uint112(bound(amountOfYield, 1, 1e13));
-    mockAvailableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
     uint256 amountOut = amountOfYield;
     mockLiquidateGivenAmountOut(defaultLiquidationPair, alice, amountOut, true);
     vm.prank(alice);
