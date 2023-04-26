@@ -146,7 +146,7 @@ contract LiquidationPair {
    * @return The available liquidity that users can swap for.
    */
   function _availableReserveOut() internal returns (uint256) {
-    return source.availableBalanceOf(tokenOut);
+    return source.liquidatableBalanceOf(tokenOut);
   }
 
   /**
