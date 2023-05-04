@@ -117,13 +117,22 @@ contract LiquidationPair {
     minK = _minK;
   }
 
-  /* ============ External Function ============ */
+  /* ============ External Methods ============ */
+  /* ============ Read Methods ============ */
+
+  /**
+   * @notice Get the address that will receive `tokenIn`.
+   * @return Address of the target
+   */
+  function target() external view returns (address) {
+    return source.targetOf(tokenIn);
+  }
 
   /**
    * @notice Computes the maximum amount of tokens that can be swapped in given the current state of the liquidation pair.
    * @return The maximum amount of tokens that can be swapped in.
    */
-  function maxAmountIn() external returns (uint256) {
+  function maxAmountIn() external view returns (uint256) {
     return
       LiquidatorLib.computeExactAmountIn(
         virtualReserveIn,
@@ -137,16 +146,8 @@ contract LiquidationPair {
    * @notice Gets the maximum amount of tokens that can be swapped out from the source.
    * @return The maximum amount of tokens that can be swapped out.
    */
-  function maxAmountOut() external returns (uint256) {
+  function maxAmountOut() external view returns (uint256) {
     return _availableReserveOut();
-  }
-
-  /**
-   * @notice Gets the available liquidity that has accrued that users can swap for.
-   * @return The available liquidity that users can swap for.
-   */
-  function _availableReserveOut() internal returns (uint256) {
-    return source.liquidatableBalanceOf(tokenOut);
   }
 
   /**
@@ -154,7 +155,7 @@ contract LiquidationPair {
    * @return The virtual reserve of the token in.
    * @return The virtual reserve of the token out.
    */
-  function nextLiquidationState() external returns (uint128, uint128) {
+  function nextLiquidationState() external view returns (uint128, uint128) {
     return
       LiquidatorLib._virtualBuyback(virtualReserveIn, virtualReserveOut, _availableReserveOut());
   }
@@ -164,7 +165,7 @@ contract LiquidationPair {
    * @param _amountOut The amount of tokens to receive out.
    * @return The amount of tokens to send in.
    */
-  function computeExactAmountIn(uint256 _amountOut) external returns (uint256) {
+  function computeExactAmountIn(uint256 _amountOut) external view returns (uint256) {
     return
       LiquidatorLib.computeExactAmountIn(
         virtualReserveIn,
@@ -179,7 +180,7 @@ contract LiquidationPair {
    * @param _amountIn The amount of tokens to send in.
    * @return The amount of tokens to receive out.
    */
-  function computeExactAmountOut(uint256 _amountIn) external returns (uint256) {
+  function computeExactAmountOut(uint256 _amountIn) external view returns (uint256) {
     return
       LiquidatorLib.computeExactAmountOut(
         virtualReserveIn,
@@ -188,6 +189,8 @@ contract LiquidationPair {
         _amountIn
       );
   }
+
+  /* ============ Write Methods ============ */
 
   /**
    * @notice Swaps the given amount of tokens in and ensures a minimum amount of tokens are received out.
@@ -259,15 +262,15 @@ contract LiquidationPair {
     return amountIn;
   }
 
-  /**
-   * @notice Get the address that will receive `tokenIn`.
-   * @return Address of the target
-   */
-  function target() external returns (address) {
-    return source.targetOf(tokenIn);
-  }
-
   /* ============ Internal Functions ============ */
+
+  /**
+   * @notice Gets the available liquidity that has accrued that users can swap for.
+   * @return The available liquidity that users can swap for.
+   */
+  function _availableReserveOut() internal view returns (uint256) {
+    return source.liquidatableBalanceOf(tokenOut);
+  }
 
   /**
    * @notice Sends the provided amounts of tokens to the address given.
