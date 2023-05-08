@@ -12,7 +12,7 @@ contract MockLiquidatorLib {
     uint128 _reserveB,
     uint256 _amountInB,
     uint256 _amountOutB
-  ) public view returns (uint256) {
+  ) public pure returns (uint256) {
     uint256 amountIn = LiquidatorLib.computeExactAmountIn(
       _reserveA,
       _reserveB,
@@ -27,7 +27,7 @@ contract MockLiquidatorLib {
     uint128 _reserveB,
     uint256 _amountInB,
     uint256 _amountInA
-  ) public view returns (uint256) {
+  ) public pure returns (uint256) {
     uint256 amountOut = LiquidatorLib.computeExactAmountOut(
       _reserveA,
       _reserveB,
@@ -41,7 +41,7 @@ contract MockLiquidatorLib {
     uint128 _reserveA,
     uint128 _reserveB,
     uint256 _amountInB
-  ) public view returns (uint128, uint128) {
+  ) public pure returns (uint128, uint128) {
     (uint128 reserveA, uint128 reserveB) = LiquidatorLib._virtualBuyback(
       _reserveA,
       _reserveB,
@@ -58,7 +58,7 @@ contract MockLiquidatorLib {
     UFixed32x4 _swapMultiplier,
     UFixed32x4 _liquidityFraction,
     uint128 _minK
-  ) public view returns (uint128, uint128) {
+  ) public pure returns (uint128, uint128) {
     (uint128 reserveA, uint128 reserveB) = LiquidatorLib._virtualSwap(
       _reserveA,
       _reserveB,
@@ -77,7 +77,7 @@ contract MockLiquidatorLib {
     uint256 _amountInB,
     UFixed32x4 _liquidityFraction,
     uint256 _mink
-  ) public view returns (uint256, uint256) {
+  ) public pure returns (uint256, uint256) {
     (uint128 reserveA, uint128 reserveB) = LiquidatorLib._applyLiquidityFraction(
       _reserveA,
       _reserveB,
@@ -96,7 +96,7 @@ contract MockLiquidatorLib {
     UFixed32x4 _swapMultiplier,
     UFixed32x4 _liquidityFraction,
     uint128 _minK
-  ) public view returns (uint256, uint256, uint256) {
+  ) public pure returns (uint256, uint256, uint256) {
     (uint256 reserveA, uint256 reserveB, uint256 amountOut) = LiquidatorLib.swapExactAmountIn(
       _reserveA,
       _reserveB,
@@ -117,7 +117,7 @@ contract MockLiquidatorLib {
     UFixed32x4 _swapMultiplier,
     UFixed32x4 _liquidityFraction,
     uint128 _minK
-  ) public view returns (uint256, uint256, uint256) {
+  ) public pure returns (uint256, uint256, uint256) {
     (uint256 reserveA, uint256 reserveB, uint256 amountIn) = LiquidatorLib.swapExactAmountOut(
       _reserveA,
       _reserveB,
@@ -134,7 +134,7 @@ contract MockLiquidatorLib {
     uint256 amountIn,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut
-  ) public view returns (uint256) {
+  ) public pure returns (uint256) {
     uint256 amountOut = LiquidatorLib.getAmountOut(amountIn, virtualReserveIn, virtualReserveOut);
     return amountOut;
   }
@@ -143,7 +143,7 @@ contract MockLiquidatorLib {
     uint256 amountOut,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut
-  ) public view returns (uint256) {
+  ) public pure returns (uint256) {
     uint256 amountIn = LiquidatorLib.getAmountIn(amountOut, virtualReserveIn, virtualReserveOut);
     return amountIn;
   }
