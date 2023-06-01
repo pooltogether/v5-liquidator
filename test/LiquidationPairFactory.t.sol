@@ -30,7 +30,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
     UFixed32x4 liquidityFraction,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut,
-    uint256 minK
+    uint256 minK,
+    UFixed32x4 maxPriceImpact
   );
 
   /* ============ Set up ============ */
@@ -60,7 +61,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x4.wrap(.02e4),
       100,
       100,
-      200
+      200,
+      UFixed32x4.wrap(9999)
     );
 
     LiquidationPair lp = factory.createPair(
@@ -71,7 +73,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x4.wrap(.02e4),
       100,
       100,
-      200
+      200,
+      UFixed32x4.wrap(9999)
     );
 
     mockTarget(source, target);
@@ -97,7 +100,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x4.wrap(0),
       100,
       100,
-      200
+      200,
+      UFixed32x4.wrap(9999)
     );
   }
 
@@ -113,7 +117,8 @@ contract LiquidationPairFactoryTest is BaseSetup {
       UFixed32x4.wrap(.02e4),
       100,
       100,
-      200
+      200,
+      UFixed32x4.wrap(9999)
     );
     assertEq(factory.totalPairs(), 1);
   }

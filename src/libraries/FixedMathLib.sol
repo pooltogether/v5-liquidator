@@ -10,7 +10,7 @@ type UFixed32x4 is uint32;
  * @notice A minimal library to do fixed point operations with 4 decimals of precision.
  */
 library FixedMathLib {
-  uint256 constant multiplier = 1e4;
+  uint256 public constant multiplier = 1e4;
 
   /**
    * @notice Multiply a uint256 by a UFixed32x4.

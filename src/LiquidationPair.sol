@@ -33,6 +33,7 @@ contract LiquidationPair {
   address public immutable tokenOut;
   UFixed32x4 public immutable swapMultiplier;
   UFixed32x4 public immutable liquidityFraction;
+  UFixed32x4 public immutable maxPriceImpactOut;
 
   uint128 public virtualReserveIn;
   uint128 public virtualReserveOut;
@@ -68,6 +69,7 @@ contract LiquidationPair {
    * @param _virtualReserveIn The initial virtual reserve of token in.
    * @param _virtualReserveOut The initial virtual reserve of token out.
    * @param _minK The minimum value of k.
+   * @param _maxPriceImpactOut The maximum price impact on token out for a virtual buyback.
    * @dev The swap multiplier and liquidity fraction are represented as UFixed32x4.
    */
   constructor(
@@ -78,7 +80,8 @@ contract LiquidationPair {
     UFixed32x4 _liquidityFraction,
     uint128 _virtualReserveIn,
     uint128 _virtualReserveOut,
-    uint256 _minK
+    uint256 _minK,
+    UFixed32x4 _maxPriceImpactOut
   ) {
     require(
       UFixed32x4.unwrap(_liquidityFraction) > 0,
@@ -100,6 +103,14 @@ contract LiquidationPair {
       uint256(_virtualReserveIn) * _virtualReserveOut >= _minK,
       "LiquidationPair/virtual-reserves-greater-than-min-k"
     );
+    require(
+      UFixed32x4.unwrap(_maxPriceImpactOut) < 1e4,
+      "LiquidationPair/max-price-impact-greater-than-100"
+    );
+    require(
+      UFixed32x4.unwrap(_maxPriceImpactOut) >= 10,
+      "LiquidationPair/max-price-impact-less-than-1"
+    );
     require(_minK > 0, "LiquidationPair/min-k-greater-than-zero");
     require(_virtualReserveIn <= type(uint112).max, "LiquidationPair/virtual-reserve-in-too-large");
     require(
@@ -115,6 +126,7 @@ contract LiquidationPair {
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;
     minK = _minK;
+    maxPriceImpactOut = _maxPriceImpactOut;
   }
 
   /* ============ External Methods ============ */
@@ -133,12 +145,22 @@ contract LiquidationPair {
    * @return The maximum amount of tokens that can be swapped in.
    */
   function maxAmountIn() external view returns (uint256) {
+    // Calculate the maximum amount of token out available to be swapped out.
+    (, uint256 amountIn1) = LiquidatorLib.getVirtualBuybackAmounts(
+      _availableReserveOut(),
+      virtualReserveOut,
+      virtualReserveIn,
+      maxPriceImpactOut
+    );
+
+    // Calculate how much token in is required to receive that amount of token out.
     return
       LiquidatorLib.computeExactAmountIn(
         virtualReserveIn,
         virtualReserveOut,
-        _availableReserveOut(),
-        _availableReserveOut()
+        amountIn1,
+        amountIn1,
+        maxPriceImpactOut
       );
   }
 
@@ -147,7 +169,26 @@ contract LiquidationPair {
    * @return The maximum amount of tokens that can be swapped out.
    */
   function maxAmountOut() external view returns (uint256) {
-    return _availableReserveOut();
+    uint256 availableReserveOut = _availableReserveOut();
+    // Calculate the price impact of a virtual buyback of all available tokens.
+    (UFixed32x4 priceImpact, ) = LiquidatorLib.calculateVirtualSwapPriceImpact(
+      availableReserveOut,
+      virtualReserveOut,
+      virtualReserveIn
+    );
+
+    if (UFixed32x4.unwrap(priceImpact) > UFixed32x4.unwrap(maxPriceImpactOut)) {
+      // If the price impact exceeds the maximum, return a restricted amount.
+      (uint256 maxAmountOfOut, ) = LiquidatorLib.calculateRestrictedAmounts(
+        virtualReserveOut,
+        virtualReserveIn,
+        maxPriceImpactOut
+      );
+      return maxAmountOfOut;
+    }
+
+    // If the price imact is below the maximum, return the full amount.
+    return availableReserveOut;
   }
 
   /**
@@ -155,9 +196,14 @@ contract LiquidationPair {
    * @return The virtual reserve of the token in.
    * @return The virtual reserve of the token out.
    */
-  function nextLiquidationState() external view returns (uint128, uint128) {
+  function nextLiquidationState() external view returns (uint128, uint128, uint256, uint256) {
     return
-      LiquidatorLib._virtualBuyback(virtualReserveIn, virtualReserveOut, _availableReserveOut());
+      LiquidatorLib._virtualBuyback(
+        virtualReserveIn,
+        virtualReserveOut,
+        _availableReserveOut(),
+        maxPriceImpactOut
+      );
   }
 
   /**
@@ -171,7 +217,8 @@ contract LiquidationPair {
         virtualReserveIn,
         virtualReserveOut,
         _availableReserveOut(),
-        _amountOut
+        _amountOut,
+        maxPriceImpactOut
       );
   }
 
@@ -186,7 +233,8 @@ contract LiquidationPair {
         virtualReserveIn,
         virtualReserveOut,
         _availableReserveOut(),
-        _amountIn
+        _amountIn,
+        maxPriceImpactOut
       );
   }
 
@@ -214,7 +262,8 @@ contract LiquidationPair {
         _amountIn,
         swapMultiplier,
         liquidityFraction,
-        minK
+        minK,
+        maxPriceImpactOut
       );
 
     virtualReserveIn = _virtualReserveIn;
@@ -250,7 +299,8 @@ contract LiquidationPair {
         _amountOut,
         swapMultiplier,
         liquidityFraction,
-        minK
+        minK,
+        maxPriceImpactOut
       );
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;

@@ -23,6 +23,7 @@ struct NewLiquidationPairArgs {
   uint128 virtualReserveIn;
   uint128 virtualReserveOut;
   uint256 minK;
+  UFixed32x4 maxPriceImpact;
 }
 
 contract LiquidationPairTestSetup is BaseSetup {
@@ -109,7 +110,8 @@ contract LiquidationPairTestSetup is BaseSetup {
       _lpArgs.liquidityFraction,
       _lpArgs.virtualReserveIn,
       _lpArgs.virtualReserveOut,
-      _lpArgs.minK
+      _lpArgs.minK,
+      _lpArgs.maxPriceImpact
     );
     swapExactAmountIn(
       _user,
@@ -137,7 +139,8 @@ contract LiquidationPairTestSetup is BaseSetup {
       _lpArgs.liquidityFraction,
       _lpArgs.virtualReserveIn,
       _lpArgs.virtualReserveOut,
-      _lpArgs.minK
+      _lpArgs.minK,
+      _lpArgs.maxPriceImpact
     );
 
     mockLiquidatableBalanceOf(_lpArgs.source, _lpArgs.tokenOut, _amountOfYield);
@@ -218,7 +221,8 @@ contract LiquidationPairTestSetup is BaseSetup {
       _lpArgs.liquidityFraction,
       _lpArgs.virtualReserveIn,
       _lpArgs.virtualReserveOut,
-      _lpArgs.minK
+      _lpArgs.minK,
+      _lpArgs.maxPriceImpact
     );
     swapExactAmountOut(
       _user,
@@ -298,6 +302,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   uint128 public defaultVirtualReserveIn;
   uint128 public defaultVirtualReserveOut;
   uint256 public defaultMinK;
+  UFixed32x4 public defaultMaxPriceImpact;
 
   LiquidationPair public defaultLiquidationPair;
 
@@ -310,6 +315,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     defaultVirtualReserveIn = 100;
     defaultVirtualReserveOut = 100;
     defaultMinK = 100;
+    defaultMaxPriceImpact = UFixed32x4.wrap(9999);
 
     defaultLiquidationPair = new LiquidationPair(
       ILiquidationSource(source),
@@ -319,7 +325,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -351,7 +358,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(0),
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -365,7 +373,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1e4 + 1),
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -379,7 +388,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -393,7 +403,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       1,
       1,
-      100
+      100,
+      defaultMaxPriceImpact
     );
   }
 
@@ -407,7 +418,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       uint128(type(uint112).max) + 1,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -421,7 +433,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       uint128(type(uint112).max) + 1,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -431,16 +444,42 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
   function testMaxAmountIn_HappyPath() public {
     mockLiquidatableBalanceOf(source, tokenOut, 1e18);
+    // With a low amount of virtual reserves, we can only liquidate a small amount
     uint256 amountIn = defaultLiquidationPair.maxAmountIn();
-    assertEq(amountIn, 10000000000000001);
+    assertEq(amountIn, 100);
+
+    // However, with higher amounts, we can claim more
+    LiquidationPair lp = new LiquidationPair(
+      ILiquidationSource(source),
+      tokenIn,
+      tokenOut,
+      defaultSwapMultiplier,
+      defaultLiquidityFraction,
+      100e18,
+      100e18,
+      defaultMinK,
+      defaultMaxPriceImpact
+    );
+    amountIn = lp.maxAmountIn();
+    assertEq(amountIn, 990099009900990100);
   }
 
   /* ============ maxAmountOut ============ */
 
   function testMaxAmountOut_HappyPath() public {
-    mockLiquidatableBalanceOf(source, tokenOut, 1e18);
+    mockLiquidatableBalanceOf(source, tokenOut, 1);
     uint256 amountOut = defaultLiquidationPair.maxAmountOut();
-    assertEq(amountOut, 1e18);
+    assertEq(amountOut, 1);
+  }
+
+  function testMaxAmountOut_YieldExceedsPriceImpact() public {
+    mockLiquidatableBalanceOf(source, tokenOut, 100);
+    uint256 amountOut = defaultLiquidationPair.maxAmountOut();
+    assertEq(amountOut, 100);
+
+    mockLiquidatableBalanceOf(source, tokenOut, 10000);
+    amountOut = defaultLiquidationPair.maxAmountOut();
+    assertEq(amountOut, 9900);
   }
 
   /* ============ nextLiquidationState ============ */
@@ -448,7 +487,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   function testNextLiquidationState_HappyPath() public {
     mockLiquidatableBalanceOf(source, tokenOut, 0);
 
-    (uint256 virtualReserveIn, uint256 virtualReserveOut) = defaultLiquidationPair
+    (uint256 virtualReserveIn, uint256 virtualReserveOut, , ) = defaultLiquidationPair
       .nextLiquidationState();
 
     assertEq(virtualReserveIn, defaultVirtualReserveIn);
@@ -458,19 +497,19 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   /* ============ computeExactAmountIn ============ */
 
   function testComputeExactAmountIn_HappyPath() public {
-    mockLiquidatableBalanceOf(source, tokenOut, 10);
+    mockLiquidatableBalanceOf(source, tokenOut, 2);
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(1);
     assertEq(amountIn, 1);
     vm.clearMockedCalls();
 
-    mockLiquidatableBalanceOf(source, tokenOut, 10e8);
-    amountIn = defaultLiquidationPair.computeExactAmountIn(5e8);
-    assertEq(amountIn, 1);
+    mockLiquidatableBalanceOf(source, tokenOut, 5);
+    amountIn = defaultLiquidationPair.computeExactAmountIn(2);
+    assertEq(amountIn, 2);
     vm.clearMockedCalls();
 
-    mockLiquidatableBalanceOf(source, tokenOut, 10e18);
-    amountIn = defaultLiquidationPair.computeExactAmountIn(5e18);
-    assertEq(amountIn, 1);
+    mockLiquidatableBalanceOf(source, tokenOut, 10);
+    amountIn = defaultLiquidationPair.computeExactAmountIn(4);
+    assertEq(amountIn, 4);
     vm.clearMockedCalls();
   }
 
@@ -483,7 +522,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       10000 * 1e18,
       10000 * 1e18,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidatableBalanceOf(source, tokenOut, 10);
@@ -512,12 +552,12 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
     mockLiquidatableBalanceOf(source, tokenOut, 10e8);
     amountOut = defaultLiquidationPair.computeExactAmountOut(1);
-    assertEq(amountOut, 500000050);
+    assertEq(amountOut, 5000);
     vm.clearMockedCalls();
 
     mockLiquidatableBalanceOf(source, tokenOut, 10e18);
     amountOut = defaultLiquidationPair.computeExactAmountOut(1);
-    assertEq(amountOut, 5000000000000000050);
+    assertEq(amountOut, 5000);
     vm.clearMockedCalls();
   }
 
@@ -530,7 +570,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       10000 * 1e18,
       10000 * 1e18,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidatableBalanceOf(source, tokenOut, 10);
@@ -573,7 +614,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -588,7 +630,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint128 virtualReserveIn = type(uint112).max;
     uint128 virtualReserveOut = type(uint112).max;
     uint128 expectedVirtualReserveIn = 1318435852399872841894164877541375;
-    uint128 expectedVirtualReserveOut = type(uint112).max;
+    uint128 expectedVirtualReserveOut = 5192296858534827628530496329220095;
 
     swapExactAmountInNewLiquidationPair(
       alice,
@@ -602,7 +644,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -632,7 +675,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -661,7 +705,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -690,7 +735,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -719,7 +765,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -748,7 +795,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -762,8 +810,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     UFixed32x4 liquidityFraction = defaultLiquidityFraction;
     uint128 virtualReserveIn = 100;
     uint128 virtualReserveOut = 1;
-    uint128 expectedVirtualReserveIn = 5000000050500000000000;
-    uint128 expectedVirtualReserveOut = 500000000000;
+    uint128 expectedVirtualReserveIn = 495000004950;
+    uint128 expectedVirtualReserveOut = 4950;
 
     swapExactAmountInNewLiquidationPair(
       alice,
@@ -777,7 +825,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -806,7 +855,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -835,7 +885,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -864,7 +915,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -893,7 +945,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -922,7 +975,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -931,13 +985,13 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
   function testSwapExactAmountIn_MinReserveIn() public {
     uint256 amountIn = 1;
-    uint256 amountOfYield = 1;
+    uint256 amountOfYield = 100;
     UFixed32x4 swapMultiplier = defaultSwapMultiplier;
     UFixed32x4 liquidityFraction = defaultLiquidityFraction;
     uint128 virtualReserveIn = 1;
-    uint128 virtualReserveOut = 1;
-    uint128 expectedVirtualReserveIn = 150;
-    uint128 expectedVirtualReserveOut = 50;
+    uint128 virtualReserveOut = 100;
+    uint128 expectedVirtualReserveIn = 214;
+    uint128 expectedVirtualReserveOut = 5000;
 
     swapExactAmountInNewLiquidationPair(
       alice,
@@ -951,7 +1005,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -963,9 +1018,9 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
     uint256 amountOfYield = 1;
     UFixed32x4 swapMultiplier = defaultSwapMultiplier;
     UFixed32x4 liquidityFraction = defaultLiquidityFraction;
-    uint128 virtualReserveIn = 1;
-    uint128 virtualReserveOut = 1;
-    uint128 expectedVirtualReserveIn = 150;
+    uint128 virtualReserveIn = 100;
+    uint128 virtualReserveOut = 100;
+    uint128 expectedVirtualReserveIn = 51;
     uint128 expectedVirtualReserveOut = 50;
 
     swapExactAmountInNewLiquidationPair(
@@ -980,7 +1035,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1015,9 +1071,10 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       tokenOut,
       UFixed32x4.wrap(0),
       UFixed32x4.wrap(1),
+      100,
+      100,
       1,
-      1,
-      1
+      defaultMaxPriceImpact
     );
     uint256 amountOfYield = 1;
 
@@ -1084,11 +1141,97 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
     );
+  }
+
+  function testSwapExactAmountOut_Attack() public {
+    // Setup
+    uint256 amountOut = 1e18;
+    uint256 amountOfYield = 10000e18;
+    uint256 maxAmountIn = type(uint256).max;
+    UFixed32x4 swapMultiplier = defaultSwapMultiplier;
+    UFixed32x4 liquidityFraction = defaultLiquidityFraction;
+    uint128 virtualReserveIn = 1000000e18;
+    uint128 virtualReserveOut = 1000000e18;
+    LiquidationPair liquidationPair = new LiquidationPair(
+      ILiquidationSource(source),
+      tokenIn,
+      tokenOut,
+      swapMultiplier,
+      liquidityFraction,
+      virtualReserveIn,
+      virtualReserveOut,
+      defaultMinK,
+      defaultMaxPriceImpact
+    );
+
+    // Swap for a small amount
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidateGivenAmountOut(liquidationPair, alice, amountOut, true);
+    vm.prank(alice);
+    uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(alice, amountOut, maxAmountIn);
+    uint128 newVirtualReserveIn = liquidationPair.virtualReserveIn();
+    uint128 newVirtualReserveOut = liquidationPair.virtualReserveOut();
+    amountOfYield -= amountOut;
+    logReserveData(newVirtualReserveIn, newVirtualReserveOut, virtualReserveIn, virtualReserveOut);
+
+    // Swap for remainder
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidateGivenAmountOut(liquidationPair, alice, amountOfYield, true);
+    vm.prank(alice);
+    swappedAmountIn += liquidationPair.swapExactAmountOut(alice, amountOfYield, maxAmountIn);
+    amountOfYield -= amountOut;
+  }
+
+  function testSwapExactAmountOut_Attack2() public {
+    // Setup
+    uint256 amountOut = 1e18;
+    uint256 amountOfYield = 10000e18;
+    uint256 maxAmountIn = type(uint256).max;
+    UFixed32x4 swapMultiplier = defaultSwapMultiplier;
+    UFixed32x4 liquidityFraction = defaultLiquidityFraction;
+    uint128 virtualReserveIn = 1000000e18;
+    uint128 virtualReserveOut = 1000000e18;
+    LiquidationPair liquidationPair = new LiquidationPair(
+      ILiquidationSource(source),
+      tokenIn,
+      tokenOut,
+      swapMultiplier,
+      liquidityFraction,
+      virtualReserveIn,
+      virtualReserveOut,
+      defaultMinK,
+      defaultMaxPriceImpact
+    );
+
+    // Swap for a small amount
+    mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
+    mockLiquidateGivenAmountOut(liquidationPair, alice, amountOfYield, true);
+    vm.prank(alice);
+    uint256 swappedAmountIn = liquidationPair.swapExactAmountOut(alice, amountOfYield, maxAmountIn);
+    uint128 newVirtualReserveIn = liquidationPair.virtualReserveIn();
+    uint128 newVirtualReserveOut = liquidationPair.virtualReserveOut();
+    logReserveData(newVirtualReserveIn, newVirtualReserveOut, virtualReserveIn, virtualReserveOut);
+  }
+
+  function logReserveData(
+    uint256 reserveIn,
+    uint256 reserveOut,
+    uint256 prevReserveIn,
+    uint256 prevReserveOut
+  ) public {
+    console2.log("~~~");
+    console2.log("previous reserveIn:   %s ", prevReserveIn);
+    console2.log("previous reserveOut:  %s ", prevReserveOut);
+    console2.log("previous price:       %s", prevReserveOut / prevReserveIn);
+    console2.log("reserveIn:            %s ", reserveIn);
+    console2.log("reserveOut:           %s ", reserveOut);
+    console2.log("price:                %s", reserveOut / reserveIn);
   }
 
   function testSwapExactAmountOut_MinSwapMultiplier() public {
@@ -1113,7 +1256,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1142,7 +1286,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1171,7 +1316,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1200,7 +1346,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1210,11 +1357,11 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   function testSwapExactAmountOut_MaximumAmountOut() public {
     uint256 amountOut = type(uint112).max;
     uint256 amountOfYield = type(uint112).max;
-    uint128 virtualReserveIn = 1;
+    uint128 virtualReserveIn = 1000;
     uint128 virtualReserveOut = type(uint112).max;
     UFixed32x4 swapMultiplier = UFixed32x4.wrap(0);
     UFixed32x4 liquidityFraction = UFixed32x4.wrap(1e4);
-    uint128 expectedVirtualReserveIn = 4;
+    uint128 expectedVirtualReserveIn = 1002;
     uint128 expectedVirtualReserveOut = type(uint112).max;
 
     swapExactAmountOutNewLiquidationPair(
@@ -1229,7 +1376,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1256,7 +1404,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       liquidityFraction,
       virtualReserveIn,
       virtualReserveOut,
-      1
+      1,
+      defaultMaxPriceImpact
     );
 
     mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
@@ -1295,7 +1444,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1324,7 +1474,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1332,13 +1483,13 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testSwapExactAmountOut_MoreThanVirtualReservesOut() public {
-    uint256 amountOut = 1e18;
+    uint256 amountOut = 4950;
     uint256 amountOfYield = 10e18;
     UFixed32x4 swapMultiplier = defaultSwapMultiplier;
     UFixed32x4 liquidityFraction = defaultLiquidityFraction;
     uint128 virtualReserveIn = 100;
-    uint128 virtualReserveOut = 100;
-    uint128 expectedVirtualReserveIn = 172;
+    uint128 virtualReserveOut = 50;
+    uint128 expectedVirtualReserveIn = 2525500000000000000000000;
     uint128 expectedVirtualReserveOut = 500000000000000000000;
 
     swapExactAmountOutNewLiquidationPair(
@@ -1353,7 +1504,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1382,7 +1534,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1406,7 +1559,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       liquidityFraction,
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
@@ -1423,14 +1577,14 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testSwapExactAmountOut_MinReserveOut() public {
-    uint256 amountOut = 1e18;
+    uint256 amountOut = 99;
     uint256 amountOfYield = 10e18;
     UFixed32x4 swapMultiplier = UFixed32x4.wrap(0.3e4);
     UFixed32x4 liquidityFraction = UFixed32x4.wrap(0.02e4);
     uint128 virtualReserveIn = 100e18;
     uint128 virtualReserveOut = 1;
-    uint128 expectedVirtualReserveIn = 747;
-    uint128 expectedVirtualReserveOut = 500000000000000000000;
+    uint128 expectedVirtualReserveIn = 100000000000000000001;
+    uint128 expectedVirtualReserveOut = 1;
 
     swapExactAmountOutNewLiquidationPair(
       alice,
@@ -1444,7 +1598,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1473,7 +1628,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        defaultMinK
+        defaultMinK,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1481,14 +1637,14 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testSwapExactAmountOut_MinReserves() public {
-    uint256 amountOut = 1e18;
-    uint256 amountOfYield = 10e18;
+    uint256 amountOut = 1;
+    uint256 amountOfYield = 10;
     UFixed32x4 swapMultiplier = defaultSwapMultiplier;
     UFixed32x4 liquidityFraction = defaultLiquidityFraction;
-    uint128 virtualReserveIn = 1;
-    uint128 virtualReserveOut = 1;
-    uint128 expectedVirtualReserveIn = 172;
-    uint128 expectedVirtualReserveOut = 500000000000000000000;
+    uint128 virtualReserveIn = 100;
+    uint128 virtualReserveOut = 100;
+    uint128 expectedVirtualReserveIn = 426;
+    uint128 expectedVirtualReserveOut = 500;
 
     swapExactAmountOutNewLiquidationPair(
       alice,
@@ -1502,7 +1658,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
         liquidityFraction,
         virtualReserveIn,
         virtualReserveOut,
-        1
+        1,
+        defaultMaxPriceImpact
       ),
       expectedVirtualReserveIn,
       expectedVirtualReserveOut
@@ -1536,9 +1693,10 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       tokenOut,
       UFixed32x4.wrap(0),
       UFixed32x4.wrap(1),
+      100,
+      100,
       1,
-      1,
-      1
+      defaultMaxPriceImpact
     );
 
     uint256 amountOfYield = 10;
@@ -1598,7 +1756,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair1, alice, amountOut, true);
@@ -1612,7 +1771,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair2, alice, amountOut, true);
@@ -1626,7 +1786,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair3, alice, amountOut, true);
@@ -1660,7 +1821,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair1, alice, amountOut, true);
@@ -1674,7 +1836,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair2, alice, amountOut, true);
@@ -1688,7 +1851,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       virtualReserveIn,
       virtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair3, alice, amountOut, true);
@@ -1719,7 +1883,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1),
       1000,
       1000,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
     uint256 amountOut = 10;
 
@@ -1734,7 +1899,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1e4),
       1000,
       1000,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair2, alice, amountOut, true);
@@ -1748,7 +1914,8 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
       UFixed32x4.wrap(1e4),
       1000,
       1000,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockLiquidateGivenAmountOut(liquidationPair3, alice, amountOut, true);
@@ -1776,6 +1943,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
   uint128 public defaultVirtualReserveIn;
   uint128 public defaultVirtualReserveOut;
   uint256 public defaultMinK;
+  UFixed32x4 public defaultMaxPriceImpact;
 
   LiquidationPair public defaultLiquidationPair;
 
@@ -1788,6 +1956,7 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
     defaultVirtualReserveIn = 1198574999999999899456; // 1e18
     defaultVirtualReserveOut = 4794300; //1e8
     defaultMinK = 5746328122499999517961900800;
+    defaultMaxPriceImpact = UFixed32x4.wrap(9999);
 
     defaultLiquidationPair = new LiquidationPair(
       ILiquidationSource(source),
@@ -1797,7 +1966,8 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
   }
 
@@ -1825,18 +1995,20 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
     // Semi-realistic range of yield
     amountOfYield = bound(amountOfYield, 101, 100000e8);
     mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
-    uint256 _amountOut = amountOfYield / 100; // 1% of yield
+    uint256 maxAmountOut = defaultLiquidationPair.maxAmountOut();
+    uint256 _amountOut = maxAmountOut / 100; // 1% of max amount out
     uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(_amountOut);
     uint256 amountOut = defaultLiquidationPair.computeExactAmountOut(amountIn);
     assertEq(_amountOut, amountOut);
   }
 
   /* ============ swapExactAmountIn ============ */
-  function testSwapExactAmountIn_AllYieldOut(uint112 amountOfYield) public {
+  function testSwapExactAmountIn_MaxOut(uint112 amountOfYield) public {
     // Semi-realistic range of yield
     amountOfYield = uint112(bound(amountOfYield, 1, 1e13));
     mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
-    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOfYield);
+    uint256 amountOut = defaultLiquidationPair.maxAmountOut();
+    uint256 amountIn = defaultLiquidationPair.computeExactAmountIn(amountOut);
     mockLiquidateGivenAmountIn(defaultLiquidationPair, alice, amountIn, true);
     vm.prank(alice);
     defaultLiquidationPair.swapExactAmountIn(alice, amountIn, 0);
@@ -1844,10 +2016,10 @@ contract LiquidationPairBitcoinScenarioTest is LiquidationPairTestSetup {
 
   /* ============ swapExactAmountOut ============ */
 
-  function testSwapExactAmountOut_AllYieldOut(uint112 amountOfYield) public {
+  function testSwapExactAmountOut_MaxOut(uint112 amountOfYield) public {
     amountOfYield = uint112(bound(amountOfYield, 1, 1e13));
     mockLiquidatableBalanceOf(source, tokenOut, amountOfYield);
-    uint256 amountOut = amountOfYield;
+    uint256 amountOut = defaultLiquidationPair.maxAmountOut();
     mockLiquidateGivenAmountOut(defaultLiquidationPair, alice, amountOut, true);
     vm.prank(alice);
     defaultLiquidationPair.swapExactAmountOut(alice, amountOut, type(uint112).max);

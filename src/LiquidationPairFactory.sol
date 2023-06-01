@@ -33,7 +33,8 @@ contract LiquidationPairFactory {
     UFixed32x4 liquidityFraction,
     uint128 virtualReserveIn,
     uint128 virtualReserveOut,
-    uint256 minK
+    uint256 minK,
+    UFixed32x4 maxPriceImpact
   );
 
   /* ============ Variables ============ */
@@ -68,7 +69,8 @@ contract LiquidationPairFactory {
     UFixed32x4 _liquidityFraction,
     uint128 _virtualReserveIn,
     uint128 _virtualReserveOut,
-    uint256 _mink
+    uint256 _mink,
+    UFixed32x4 _maxPriceImpact
   ) external returns (LiquidationPair) {
     LiquidationPair _liquidationPair = new LiquidationPair(
       _source,
@@ -78,7 +80,8 @@ contract LiquidationPairFactory {
       _liquidityFraction,
       _virtualReserveIn,
       _virtualReserveOut,
-      _mink
+      _mink,
+      _maxPriceImpact
     );
 
     allPairs.push(_liquidationPair);
@@ -93,7 +96,8 @@ contract LiquidationPairFactory {
       _liquidityFraction,
       _virtualReserveIn,
       _virtualReserveOut,
-      _mink
+      _mink,
+      _maxPriceImpact
     );
 
     return _liquidationPair;

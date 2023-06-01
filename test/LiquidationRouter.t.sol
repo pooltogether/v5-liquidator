@@ -33,6 +33,7 @@ contract LiquidationRouterTest is BaseSetup {
   uint128 public defaultVirtualReserveIn;
   uint128 public defaultVirtualReserveOut;
   uint256 public defaultMinK;
+  UFixed32x4 public defaultMaxPriceImpact;
 
   LiquidationPairFactory public factory;
   address public source;
@@ -53,6 +54,7 @@ contract LiquidationRouterTest is BaseSetup {
     defaultVirtualReserveIn = 100e18;
     defaultVirtualReserveOut = 100e18;
     defaultMinK = 1e8;
+    defaultMaxPriceImpact = UFixed32x4.wrap(9999);
 
     tokenIn = utils.generateAddress("tokenIn");
     tokenOut = utils.generateAddress("tokenOut");
@@ -83,7 +85,8 @@ contract LiquidationRouterTest is BaseSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockSwapIn(
@@ -113,7 +116,8 @@ contract LiquidationRouterTest is BaseSetup {
       defaultLiquidityFraction,
       defaultVirtualReserveIn,
       defaultVirtualReserveOut,
-      defaultMinK
+      defaultMinK,
+      defaultMaxPriceImpact
     );
 
     mockSwapOut(
@@ -178,7 +182,7 @@ contract LiquidationRouterTest is BaseSetup {
     );
   }
 
-  // NOTE: Function selector of safeTransferFrom wasn't working
+  // Note: Function selector of safeTransferFrom wasn't working
   function mockTransferFrom(address _token, address _from, address _to, uint256 _amount) internal {
     vm.mockCall(
       _token,
