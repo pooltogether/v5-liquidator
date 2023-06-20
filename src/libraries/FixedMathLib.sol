@@ -4,6 +4,13 @@ pragma solidity 0.8.17;
 
 type UFixed32x4 is uint32;
 
+/// @notice Emitted when variable `a` is greater than the max uint224
+/// @param a Variable `a`
+error FixedMathLib_A_GT_MaxUint224(uint256 a);
+
+/// @notice Emitted when variable `b` is equal to zero
+error FixedMathLib_B_Zero();
+
 /**
  * @title FixedMathLib
  * @author PoolTogether Inc. Team
@@ -19,7 +26,7 @@ library FixedMathLib {
    * @return The product of a and b.
    */
   function mul(uint256 a, UFixed32x4 b) internal pure returns (uint256) {
-    require(a <= type(uint224).max, "FixedMathLib/a-less-than-224-bits");
+    if (a > type(uint224).max) revert FixedMathLib_A_GT_MaxUint224(a);
     return (a * UFixed32x4.unwrap(b)) / multiplier;
   }
 
@@ -30,8 +37,8 @@ library FixedMathLib {
    * @return The quotient of a and b.
    */
   function div(uint256 a, UFixed32x4 b) internal pure returns (uint256) {
-    require(UFixed32x4.unwrap(b) > 0, "FixedMathLib/b-greater-than-zero");
-    require(a <= type(uint224).max, "FixedMathLib/a-less-than-224-bits");
+    if (UFixed32x4.unwrap(b) == 0) revert FixedMathLib_B_Zero();
+    if (a > type(uint224).max) revert FixedMathLib_A_GT_MaxUint224(a);
     return (a * multiplier) / UFixed32x4.unwrap(b);
   }
 }

@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 import { IERC20 } from "openzeppelin/token/ERC20/IERC20.sol";
 
-import { UFixed32x4 } from "../src/libraries/FixedMathLib.sol";
+import "../src/libraries/FixedMathLib.sol";
 import { LiquidationPairFactory } from "../src/LiquidationPairFactory.sol";
 import { LiquidationPair } from "../src/LiquidationPair.sol";
 import { ILiquidationSource } from "../src/interfaces/ILiquidationSource.sol";
@@ -29,7 +29,7 @@ contract FixedMathLibTest is BaseSetup {
   }
 
   function testCannotOverflowMul() public {
-    vm.expectRevert(bytes("FixedMathLib/a-less-than-224-bits"));
+    vm.expectRevert(abi.encodeWithSelector(FixedMathLib_A_GT_MaxUint224.selector, type(uint256).max));
     lib.mul(type(uint256).max, UFixed32x4.wrap(type(uint32).max));
   }
 
@@ -41,13 +41,13 @@ contract FixedMathLibTest is BaseSetup {
   }
 
   function testCannotOverflowDiv() public {
-    vm.expectRevert(bytes("FixedMathLib/a-less-than-224-bits"));
     uint256 a = uint256(type(uint224).max) + 1;
+    vm.expectRevert(abi.encodeWithSelector(FixedMathLib_A_GT_MaxUint224.selector, a));
     lib.div(a, UFixed32x4.wrap(type(uint32).max));
   }
 
   function testCannotDivByZero() public {
-    vm.expectRevert(bytes("FixedMathLib/b-greater-than-zero"));
+    vm.expectRevert(abi.encodeWithSelector(FixedMathLib_B_Zero.selector));
     lib.div(type(uint224).max, UFixed32x4.wrap(0));
   }
 }

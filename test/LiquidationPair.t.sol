@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import { LiquidationPairFactory } from "src/LiquidationPairFactory.sol";
-import { LiquidationPair } from "src/LiquidationPair.sol";
+import "src/LiquidationPair.sol";
 import { LiquidationRouter } from "src/LiquidationRouter.sol";
 
 import { ILiquidationSource } from "src/interfaces/ILiquidationSource.sol";
@@ -349,7 +349,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_LiquidityFractionMinimum() public {
-    vm.expectRevert(bytes("LiquidationPair/liquidity-fraction-greater-than-zero"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_LiquidityFraction_Zero.selector));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -364,7 +364,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_LiquidityFractionTooLarge() public {
-    vm.expectRevert(bytes("LiquidationPair/liquidity-fraction-less-than-one"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_LiquidityFraction_GT_One.selector, 1e4 + 1));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -379,7 +379,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_SwapMultiplierTooLarge() public {
-    vm.expectRevert(bytes("LiquidationPair/swap-multiplier-less-than-one"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_SwapMultiplier_GT_One.selector, 1e4 + 1));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -394,7 +394,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_ReservesSmallerThanK() public {
-    vm.expectRevert(bytes("LiquidationPair/virtual-reserves-greater-than-min-k"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_VirtualReserves_LT_MinK.selector, 1, 1, 100));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -409,7 +409,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_VirtualReserveOutTooLarge() public {
-    vm.expectRevert(bytes("LiquidationPair/virtual-reserve-out-too-large"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_VirtualReserveOut_GT_Max.selector, uint128(type(uint112).max) + 1, uint128(type(uint112).max)));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -424,7 +424,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
   }
 
   function testConstructor_VirtualReserveInTooLarge() public {
-    vm.expectRevert(bytes("LiquidationPair/virtual-reserve-in-too-large"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_VirtualReserveIn_GT_Max.selector, uint128(type(uint112).max) + 1, uint128(type(uint112).max)));
     new LiquidationPair(
       ILiquidationSource(source),
       tokenIn,
@@ -1113,7 +1113,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
     vm.prank(alice);
 
-    vm.expectRevert(bytes("LiquidationPair/min-not-guaranteed"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_MinOutNotMet.selector, type(uint256).max, 11));
     defaultLiquidationPair.swapExactAmountIn(alice, amountIn, type(uint256).max);
   }
 
@@ -1732,7 +1732,7 @@ contract LiquidationPairUnitTest is LiquidationPairTestSetup {
 
     vm.prank(alice);
 
-    vm.expectRevert(bytes("LiquidationPair/max-not-guaranteed"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_MaxInNotMet.selector, 0, 3));
     defaultLiquidationPair.swapExactAmountOut(alice, amountOut, 0);
   }
 

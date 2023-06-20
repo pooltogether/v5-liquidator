@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import { LiquidatorLib_InsufficientReserveLiquidity, LiquidatorLib_InsufficientReserveLiquidity_Out, LiquidatorLib_InsufficientBalanceLiquidity_In } from "../src/libraries/LiquidatorLib.sol";
 import { UFixed32x4 } from "../src/libraries/FixedMathLib.sol";
 import { BaseSetup } from "./utils/BaseSetup.sol";
 import { MockLiquidatorLib } from "./mocks/MockLiquidatorLib.sol";
@@ -166,9 +167,9 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotGetAmountOut_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-a"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity.selector, 100, 0));
     mockLiquidatorLib.getAmountOut(100, 0, 100);
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-a"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity.selector, 0, 100));
     mockLiquidatorLib.getAmountOut(100, 100, 0);
   }
 
@@ -451,9 +452,9 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotGetAmountIn_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-c"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity_Out.selector, 1000, 100));
     mockLiquidatorLib.getAmountIn(1000, 10, 100);
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-d"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity.selector, 100, 0));
     mockLiquidatorLib.getAmountIn(10, 0, 100);
   }
 
@@ -496,9 +497,9 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotVirtualBuyback_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-a"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity.selector, 10, 0));
     mockLiquidatorLib.virtualBuyback(10, 0, 10, MAX_IMPACT);
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-reserve-liquidity-a"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientReserveLiquidity.selector, 0, 10));
     mockLiquidatorLib.virtualBuyback(0, 10, 10, MAX_IMPACT);
   }
 
@@ -526,7 +527,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotComputeExactAmountIn_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity-a"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientBalanceLiquidity_In.selector, 100, 10));
     mockLiquidatorLib.computeExactAmountIn(10, 10, 10, 100, MAX_IMPACT);
   }
 
@@ -569,7 +570,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotComputeExactAmountOut_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity-b"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientBalanceLiquidity_In.selector, 9, 0));
     mockLiquidatorLib.computeExactAmountOut(10, 10, 0, 100, MAX_IMPACT);
   }
 
@@ -863,7 +864,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotSwapExactAmountIn_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity-c"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientBalanceLiquidity_In.selector, 13, 10));
     mockLiquidatorLib.swapExactAmountIn(
       10,
       10,
@@ -895,7 +896,7 @@ contract MockLiquidatorLibTest is BaseLiquidatorLibTest {
   }
 
   function testCannotSwapExactAmountOut_InsufficientLiquidity() public {
-    vm.expectRevert(bytes("LiquidatorLib/insufficient-balance-liquidity-d"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidatorLib_InsufficientBalanceLiquidity_In.selector, 100, 10));
     mockLiquidatorLib.swapExactAmountOut(
       10,
       10,

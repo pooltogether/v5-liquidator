@@ -6,6 +6,21 @@ import { Math } from "openzeppelin/utils/math/Math.sol";
 
 import { UFixed32x4, FixedMathLib } from "./FixedMathLib.sol";
 
+/// @notice Emitted when there is insufficient reserve for either token 0 or token 1
+/// @param reserve0 Reserve of token 0
+/// @param reserve1 Reserve of token 1
+error LiquidatorLib_InsufficientReserveLiquidity(uint128 reserve0, uint128 reserve1);
+
+/// @notice Emitted when there is insufficient reserve of a token to fulfill the amount out
+/// @param amountOut Amount to swap out
+/// @param reserve The reserve of the token
+error LiquidatorLib_InsufficientReserveLiquidity_Out(uint256 amountOut, uint128 reserve);
+
+/// @notice Emitted when there is insufficient balance liquidity provided in to get the desired amount out
+/// @param amountOut Amount of the token to swap out
+/// @param amountIn Amount of the same token coming in to decrease prices
+error LiquidatorLib_InsufficientBalanceLiquidity_In(uint256 amountOut, uint256 amountIn);
+
 /**
  * @title PoolTogether Liquidator Library
  * @author PoolTogether Inc. Team
@@ -37,7 +52,7 @@ library LiquidatorLib {
     uint128 reserve1,
     uint128 reserve0
   ) internal pure returns (uint256 amountOut0) {
-    require(reserve0 > 0 && reserve1 > 0, "LiquidatorLib/insufficient-reserve-liquidity-a");
+    if (reserve0 == 0 || reserve1 == 0) revert LiquidatorLib_InsufficientReserveLiquidity(reserve0, reserve1);
     uint256 numerator = amountIn1 * reserve0;
     uint256 denominator = amountIn1 + reserve1;
     amountOut0 = numerator / denominator;
@@ -59,7 +74,7 @@ library LiquidatorLib {
     uint128 _reserve0,
     UFixed32x4 _maxPriceImpact1
   ) internal pure returns (uint256 amountOut0, uint256 amountIn1) {
-    require(_reserve0 > 0 && _reserve1 > 0, "LiquidatorLib/insufficient-reserve-liquidity-a");
+    if (_reserve0 == 0 || _reserve1 == 0) revert LiquidatorLib_InsufficientReserveLiquidity(_reserve0, _reserve1);
 
     UFixed32x4 priceImpact1;
     (priceImpact1, amountOut0) = calculateVirtualSwapPriceImpact(_amountIn1, _reserve1, _reserve0);
@@ -84,8 +99,8 @@ library LiquidatorLib {
     uint128 reserve1,
     uint128 reserve0
   ) internal pure returns (uint256 amountIn1) {
-    require(amountOut0 < reserve0, "LiquidatorLib/insufficient-reserve-liquidity-c");
-    require(reserve0 > 0 && reserve1 > 0, "LiquidatorLib/insufficient-reserve-liquidity-d");
+    if (amountOut0 >= reserve0) revert LiquidatorLib_InsufficientReserveLiquidity_Out(amountOut0, reserve0);
+    if (reserve0 == 0 || reserve1 == 0) revert LiquidatorLib_InsufficientReserveLiquidity(reserve0, reserve1);
     uint256 numerator = amountOut0 * reserve1;
     uint256 denominator = uint256(reserve0) - amountOut0;
     amountIn1 = (numerator / denominator) + 1;
@@ -223,7 +238,7 @@ library LiquidatorLib {
     uint256 _amountOut1,
     UFixed32x4 _maxPriceImpact1
   ) internal pure returns (uint256) {
-    require(_amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-a");
+    if (_amountOut1 > _amountIn1) revert LiquidatorLib_InsufficientBalanceLiquidity_In(_amountOut1, _amountIn1);
     (uint128 reserve0, uint128 reserve1, , ) = _virtualBuyback(
       _reserve0,
       _reserve1,
@@ -255,7 +270,7 @@ library LiquidatorLib {
       _maxPriceImpact1
     );
     uint256 amountOut1 = getAmountOut(_amountIn0, reserve0, reserve1);
-    require(amountOut1 <= amountIn1, "LiquidatorLib/insufficient-balance-liquidity-b");
+    if (amountOut1 > amountIn1) revert LiquidatorLib_InsufficientBalanceLiquidity_In(amountOut1, amountIn1);
     return amountOut1;
   }
 
@@ -295,7 +310,7 @@ library LiquidatorLib {
     );
 
     amountOut1 = getAmountOut(_amountIn0, reserve0, reserve1);
-    require(amountOut1 <= amountIn1, "LiquidatorLib/insufficient-balance-liquidity-c");
+    if (amountOut1 > amountIn1) revert LiquidatorLib_InsufficientBalanceLiquidity_In(amountOut1, amountIn1);
     reserve0 = reserve0 + uint128(_amountIn0);
     reserve1 = reserve1 - uint128(amountOut1);
 
@@ -337,7 +352,7 @@ library LiquidatorLib {
     uint256 _minK,
     UFixed32x4 _maxPriceImpact1
   ) internal pure returns (uint128 reserve0, uint128 reserve1, uint256 amountIn0) {
-    require(_amountOut1 <= _amountIn1, "LiquidatorLib/insufficient-balance-liquidity-d");
+    if (_amountOut1 > _amountIn1) revert LiquidatorLib_InsufficientBalanceLiquidity_In(_amountOut1, _amountIn1);
     (reserve0, reserve1, , ) = _virtualBuyback(_reserve0, _reserve1, _amountIn1, _maxPriceImpact1);
 
     // do swap

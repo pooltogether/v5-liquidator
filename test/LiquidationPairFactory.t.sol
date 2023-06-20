@@ -7,7 +7,7 @@ import { ILiquidationSource } from "../src/interfaces/ILiquidationSource.sol";
 import { UFixed32x4 } from "../src/libraries/FixedMathLib.sol";
 
 import { LiquidationPairFactory } from "../src/LiquidationPairFactory.sol";
-import { LiquidationPair } from "../src/LiquidationPair.sol";
+import { LiquidationPair, LiquidationPair_LiquidityFraction_Zero } from "../src/LiquidationPair.sol";
 
 import { BaseSetup } from "./utils/BaseSetup.sol";
 
@@ -90,7 +90,7 @@ contract LiquidationPairFactoryTest is BaseSetup {
   }
 
   function testCannotCreatePair() public {
-    vm.expectRevert(bytes("LiquidationPair/liquidity-fraction-greater-than-zero"));
+    vm.expectRevert(abi.encodeWithSelector(LiquidationPair_LiquidityFraction_Zero.selector));
 
     factory.createPair(
       ILiquidationSource(source),

@@ -6,6 +6,56 @@ import "./libraries/FixedMathLib.sol";
 import "./interfaces/ILiquidationSource.sol";
 import { Math } from "openzeppelin/utils/math/Math.sol";
 
+/// @notice Emitted when the liquidity fraction is set to zero
+error LiquidationPair_LiquidityFraction_Zero();
+
+/// @notice Emitted when the liquidity fraction is greater than one
+/// @param liquidityFraction The unwrapped liquidity fraction being set
+error LiquidationPair_LiquidityFraction_GT_One(uint32 liquidityFraction);
+
+/// @notice Emitted when the swap multiplier is greater than one
+/// @param swapMultiplier The unwrapped swap multiplier
+error LiquidationPair_SwapMultiplier_GT_One(uint32 swapMultiplier);
+
+/// @notice Emitted when the virtual reserve in multiplied by the virtual reserve out is less than the min `K` value
+/// @param virtualReserveIn The virtual reserve in
+/// @param virtualReserveOut The virtual reserve out
+/// @param minK The min `K` value
+error LiquidationPair_VirtualReserves_LT_MinK(uint128 virtualReserveIn, uint128 virtualReserveOut, uint256 minK);
+
+/// @notice Emitted when the max price impact out is greater than or equal to the limit
+/// @param maxPriceImpactOut The unwrapped max price impact out
+/// @param maxImpact The unwrapped max impact limit
+error LiquidationPair_MaxPriceImpactOut_GTE_Max(uint32 maxPriceImpactOut, uint32 maxImpact);
+
+/// @notice Emitted when the max price impact out is less than the minimum allowed
+/// @param maxPriceImpactOut The unwrapped max price impact out
+/// @param minImpact The unwrapped minimum impact limit
+error LiquidationPair_MaxPriceImpactOut_LT_Min(uint32 maxPriceImpactOut, uint32 minImpact);
+
+/// @notice Emitted when the min `K` value is set to zero
+error LiquidationPair_MinK_Zero();
+
+/// @notice Emitted when the virtual reserve in is too large
+/// @param virtualReserveIn The virtual reserve in
+/// @param maxVirtualReserveIn The max virtual reserve in
+error LiquidationPair_VirtualReserveIn_GT_Max(uint128 virtualReserveIn, uint128 maxVirtualReserveIn);
+
+/// @notice Emitted when the virtual reserve out is too large
+/// @param virtualReserveOut The virtual reserve out
+/// @param maxVirtualReserveOut The max virtual reserve out
+error LiquidationPair_VirtualReserveOut_GT_Max(uint128 virtualReserveOut, uint128 maxVirtualReserveOut);
+
+/// @notice Emitted when the caller's min out threshold cannot be met with a swapExactAmountIn call
+/// @param minOut The caller's minimum requested out
+/// @param amountOut The amount that would be swapped out
+error LiquidationPair_MinOutNotMet(uint256 minOut, uint256 amountOut);
+
+/// @notice Emitted when the caller's max in limit cannot be met with a swapExactAmountOut call
+/// @param maxIn The caller's max in limit
+/// @param amountIn The amount that would be swapped in
+error LiquidationPair_MaxInNotMet(uint256 maxIn, uint256 amountIn);
+
 /**
  * @title PoolTogether Liquidation Pair
  * @author PoolTogether Inc. Team
@@ -83,40 +133,33 @@ contract LiquidationPair {
     uint256 _minK,
     UFixed32x4 _maxPriceImpactOut
   ) {
-    require(
-      UFixed32x4.unwrap(_liquidityFraction) > 0,
-      "LiquidationPair/liquidity-fraction-greater-than-zero"
-    );
-    require(
-      UFixed32x4.unwrap(_liquidityFraction) > 0,
-      "LiquidationPair/liquidity-fraction-greater-than-zero"
-    );
-    require(
-      UFixed32x4.unwrap(_swapMultiplier) <= 1e4,
-      "LiquidationPair/swap-multiplier-less-than-one"
-    );
-    require(
-      UFixed32x4.unwrap(_liquidityFraction) <= 1e4,
-      "LiquidationPair/liquidity-fraction-less-than-one"
-    );
-    require(
-      uint256(_virtualReserveIn) * _virtualReserveOut >= _minK,
-      "LiquidationPair/virtual-reserves-greater-than-min-k"
-    );
-    require(
-      UFixed32x4.unwrap(_maxPriceImpactOut) < 1e4,
-      "LiquidationPair/max-price-impact-greater-than-100"
-    );
-    require(
-      UFixed32x4.unwrap(_maxPriceImpactOut) >= 10,
-      "LiquidationPair/max-price-impact-less-than-1"
-    );
-    require(_minK > 0, "LiquidationPair/min-k-greater-than-zero");
-    require(_virtualReserveIn <= type(uint112).max, "LiquidationPair/virtual-reserve-in-too-large");
-    require(
-      _virtualReserveOut <= type(uint112).max,
-      "LiquidationPair/virtual-reserve-out-too-large"
-    );
+    if (UFixed32x4.unwrap(_liquidityFraction) == 0) {
+      revert LiquidationPair_LiquidityFraction_Zero();
+    }
+    if (UFixed32x4.unwrap(_swapMultiplier) > 1e4) {
+      revert LiquidationPair_SwapMultiplier_GT_One(UFixed32x4.unwrap(_swapMultiplier));
+    }
+    if (UFixed32x4.unwrap(_liquidityFraction) > 1e4) {
+      revert LiquidationPair_LiquidityFraction_GT_One(UFixed32x4.unwrap(_liquidityFraction));
+    }
+    if (uint256(_virtualReserveIn) * _virtualReserveOut < _minK) {
+      revert LiquidationPair_VirtualReserves_LT_MinK(_virtualReserveIn, _virtualReserveOut, _minK);
+    }
+    if (UFixed32x4.unwrap(_maxPriceImpactOut) >= 1e4) {
+      revert LiquidationPair_MaxPriceImpactOut_GTE_Max(UFixed32x4.unwrap(_maxPriceImpactOut), 1e4);
+    }
+    if (UFixed32x4.unwrap(_maxPriceImpactOut) < 10) {
+      revert LiquidationPair_MaxPriceImpactOut_LT_Min(UFixed32x4.unwrap(_maxPriceImpactOut), 10);
+    }
+    if (_minK == 0) {
+      revert LiquidationPair_MinK_Zero();
+    }
+    if (_virtualReserveIn > type(uint112).max) {
+      revert LiquidationPair_VirtualReserveIn_GT_Max(_virtualReserveIn, type(uint112).max);
+    }
+    if (_virtualReserveOut > type(uint112).max) {
+      revert LiquidationPair_VirtualReserveOut_GT_Max(_virtualReserveOut, type(uint112).max);
+    }
 
     source = _source;
     tokenIn = _tokenIn;
@@ -269,7 +312,9 @@ contract LiquidationPair {
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;
 
-    require(amountOut >= _amountOutMin, "LiquidationPair/min-not-guaranteed");
+    if (amountOut < _amountOutMin) {
+      revert LiquidationPair_MinOutNotMet(_amountOutMin, amountOut);
+    }
     _swap(_account, amountOut, _amountIn);
 
     emit Swapped(_account, _amountIn, amountOut, _virtualReserveIn, _virtualReserveOut);
@@ -304,7 +349,9 @@ contract LiquidationPair {
       );
     virtualReserveIn = _virtualReserveIn;
     virtualReserveOut = _virtualReserveOut;
-    require(amountIn <= _amountInMax, "LiquidationPair/max-not-guaranteed");
+    if (amountIn > _amountInMax) {
+      revert LiquidationPair_MaxInNotMet(_amountInMax, amountIn);
+    }
     _swap(_account, _amountOut, amountIn);
 
     emit Swapped(_account, amountIn, _amountOut, _virtualReserveIn, _virtualReserveOut);
